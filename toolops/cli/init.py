@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -18,14 +19,15 @@ _ENV_CHOICES = ["local", "server", "cloud"]
 
 
 def init_command(
-    output_dir: Path = typer.Option(
-        Path("."),
+    output_dir: Annotated[Path, typer.Option(
         "--output-dir",
         "-o",
         help="Directory to write generated files.",
         show_default=True,
-    ),
-    yes: bool = typer.Option(False, "--yes", "-y", help="Accept all defaults without prompting."),
+    )] = Path("."),
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Accept all defaults without prompting."),
+    ] = False,
 ) -> None:
     """Interactively initialize a ToolOps project.
 
@@ -102,7 +104,9 @@ def init_command(
     cfg_path = generate_config_yaml(vectorstore, cache, monitor, env, dest=dest / "toolops.yaml")
     console.print(f"[green]✓[/green] {cfg_path}")
 
-    dc_path = generate_docker_compose(vectorstore, cache, monitor, dest=dest / "docker-compose.yaml")
+    dc_path = generate_docker_compose(
+        vectorstore, cache, monitor, dest=dest / "docker-compose.yaml",
+    )
     console.print(f"[green]✓[/green] {dc_path}")
 
     # Copy .env.example if it doesn't exist
@@ -113,6 +117,6 @@ def init_command(
         console.print(f"[green]✓[/green] {env_example_dst}")
 
     console.print(
-        f"\n[bold cyan]Done![/bold cyan] "
-        f"Start your stack with: [green]docker compose up -d[/green]"
+        "\n[bold cyan]Done![/bold cyan] "
+        "Start your stack with: [green]docker compose up -d[/green]"
     )

@@ -47,13 +47,15 @@ class PhoenixMonitor(MonitorPlugin):
             True if setup succeeded, False otherwise.
         """
         try:
-            from opentelemetry import trace  # type: ignore[import-untyped]
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # type: ignore[import-untyped]
+            from opentelemetry import trace
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
                 OTLPSpanExporter,
             )
-            from opentelemetry.sdk.resources import Resource  # type: ignore[import-untyped]
-            from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-untyped]
-            from opentelemetry.sdk.trace.export import SimpleSpanProcessor  # type: ignore[import-untyped]
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import (
+                SimpleSpanProcessor,
+            )
 
             resource = Resource(attributes={"service.name": "toolops"})
             provider = TracerProvider(resource=resource)
@@ -125,3 +127,6 @@ class PhoenixMonitor(MonitorPlugin):
         except Exception as exc:
             logger.error("Phoenix log_metric failed: %s", exc)
             return False
+
+    def flush(self) -> None:
+        """Flush is handled by OpenTelemetry's span processor."""

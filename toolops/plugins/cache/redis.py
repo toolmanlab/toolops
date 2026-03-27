@@ -40,7 +40,7 @@ class RedisCache(CachePlugin):
     def connect(self) -> bool:
         """Establish Redis connection and verify with PING."""
         try:
-            import redis  # type: ignore[import-untyped]
+            import redis
 
             kwargs: dict[str, Any] = {
                 "host": self.host,

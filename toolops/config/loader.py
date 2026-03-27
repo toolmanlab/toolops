@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from toolops.config.schema import ToolOpsConfig
 
@@ -42,7 +42,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         with path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
         logger.debug("Loaded config from %s", path)
-        return data  # type: ignore[return-value]
+        return data
     except yaml.YAMLError as exc:
         logger.warning("Failed to parse %s: %s", path, exc)
         return {}
@@ -103,7 +103,7 @@ def _merge_yaml_under_env(yaml_data: dict[str, Any]) -> ToolOpsConfig:
         if section in yaml_data and isinstance(yaml_data[section], dict):
             merged[section] = yaml_data[section]
 
-    return ToolOpsConfig.model_validate(merged)
+    return ToolOpsConfig.model_validate(merged)  # type: ignore[no-any-return]
 
 
 def write_config(config: ToolOpsConfig, dest: Path | None = None) -> Path:

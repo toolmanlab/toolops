@@ -34,3 +34,6 @@ class NullMonitor(MonitorPlugin):
     ) -> bool:
         """Discard metric silently."""
         return True
+
+    def flush(self) -> None:
+        """No-op flush."""

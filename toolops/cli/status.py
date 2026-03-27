@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -74,12 +75,11 @@ def _check_monitor(config: ToolOpsConfig) -> tuple[str, str, str]:
 
 
 def status_command(
-    config_path: Path = typer.Option(
-        None,
+    config_path: Annotated[Path | None, typer.Option(
         "--config",
         "-c",
         help="Explicit path to toolops.yaml (auto-discovered if omitted).",
-    ),
+    )] = None,
 ) -> None:
     """Check the health status of all configured backend services.
 

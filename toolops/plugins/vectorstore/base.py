@@ -108,7 +108,7 @@ class VectorStorePlugin(ABC):
 
     # ── Context-manager support ───────────────────────────────
 
-    def __enter__(self) -> "VectorStorePlugin":
+    def __enter__(self) -> VectorStorePlugin:
         self.connect()
         return self
 

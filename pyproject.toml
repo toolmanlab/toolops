@@ -72,6 +72,14 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "toolops.config.schema"
+disable_error_code = ["misc", "untyped-decorator"]
+
+[[tool.mypy.overrides]]
+module = "toolops.cli.*"
+disable_error_code = ["misc", "untyped-decorator"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

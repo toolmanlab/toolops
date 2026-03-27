@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -42,13 +43,12 @@ def env_list() -> None:
 
 @app.command("switch")
 def env_switch(
-    environment: str = typer.Argument(..., help="Target environment: local | server | cloud"),
-    config_path: Path = typer.Option(
-        Path("toolops.yaml"),
+    environment: Annotated[str, typer.Argument(help="Target environment: local | server | cloud")],
+    config_path: Annotated[Path, typer.Option(
         "--config",
         "-c",
         help="Path to toolops.yaml",
-    ),
+    )] = Path("toolops.yaml"),
 ) -> None:
     """Switch the active deployment environment.
 
@@ -68,7 +68,7 @@ def env_switch(
         console.print(f"[yellow]Already on environment:[/yellow] {environment}")
         return
 
-    updated = config.model_copy(update={"env": environment})  # type: ignore[arg-type]
+    updated = config.model_copy(update={"env": environment})
     out = write_config(updated, config_path)
     console.print(
         f"[green]✓[/green] Switched from [yellow]{old_env}[/yellow] → "

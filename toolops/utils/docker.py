@@ -31,9 +31,9 @@ def _render_template(template_name: str, context: dict[str, Any]) -> str:
             lstrip_blocks=True,
         )
         template = env.get_template(template_name)
-        return template.render(**context)
-    except ImportError:
-        raise RuntimeError("jinja2 is required. It should be installed with toolops.")
+        return template.render(**context)  # type: ignore[no-any-return]
+    except ImportError as exc:
+        raise RuntimeError("jinja2 is required. It should be installed with toolops.") from exc
 
 
 def generate_docker_compose(

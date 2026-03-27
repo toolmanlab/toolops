@@ -39,7 +39,7 @@ class MilvusPlugin(VectorStorePlugin):
     def connect(self) -> bool:
         """Connect to Milvus via gRPC."""
         try:
-            from pymilvus import connections  # type: ignore[import-untyped]
+            from pymilvus import connections
 
             kwargs: dict[str, Any] = {"host": self.host, "port": self.port}
             if self.token:
@@ -58,7 +58,7 @@ class MilvusPlugin(VectorStorePlugin):
     def disconnect(self) -> None:
         """Disconnect from Milvus."""
         try:
-            from pymilvus import connections  # type: ignore[import-untyped]
+            from pymilvus import connections
 
             connections.disconnect(alias="default")
         except Exception:
@@ -70,7 +70,7 @@ class MilvusPlugin(VectorStorePlugin):
     def create_collection(self, name: str, dim: int) -> bool:
         """Create a Milvus collection with a float vector field."""
         try:
-            from pymilvus import (  # type: ignore[import-untyped]
+            from pymilvus import (
                 Collection,
                 CollectionSchema,
                 DataType,
@@ -92,7 +92,9 @@ class MilvusPlugin(VectorStorePlugin):
             # Create IVF_FLAT index for ANN search
             col.create_index(
                 field_name="vector",
-                index_params={"index_type": "IVF_FLAT", "metric_type": "COSINE", "params": {"nlist": 128}},
+                index_params={
+                    "index_type": "IVF_FLAT", "metric_type": "COSINE", "params": {"nlist": 128},
+                },
             )
             self._collections[name] = col
             logger.info("Collection '%s' created (dim=%d)", name, dim)
@@ -104,7 +106,7 @@ class MilvusPlugin(VectorStorePlugin):
     def delete_collection(self, name: str) -> bool:
         """Drop a Milvus collection."""
         try:
-            from pymilvus import utility  # type: ignore[import-untyped]
+            from pymilvus import utility
 
             if not utility.has_collection(name):
                 return False
@@ -118,7 +120,7 @@ class MilvusPlugin(VectorStorePlugin):
     def list_collections(self) -> list[str]:
         """Return all Milvus collection names."""
         try:
-            from pymilvus import utility  # type: ignore[import-untyped]
+            from pymilvus import utility
 
             return utility.list_collections()  # type: ignore[no-any-return]
         except Exception as exc:
@@ -129,7 +131,7 @@ class MilvusPlugin(VectorStorePlugin):
 
     def _get_collection(self, name: str) -> Any:
         """Load a collection into memory and return it."""
-        from pymilvus import Collection  # type: ignore[import-untyped]
+        from pymilvus import Collection
 
         if name not in self._collections:
             self._collections[name] = Collection(name)

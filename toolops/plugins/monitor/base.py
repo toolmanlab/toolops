@@ -49,6 +49,7 @@ class MonitorPlugin(ABC):
             True if the metric was accepted by the backend.
         """
 
+    @abstractmethod
     def flush(self) -> None:
         """Flush any buffered telemetry to the backend.
 

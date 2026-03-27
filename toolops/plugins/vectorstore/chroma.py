@@ -45,7 +45,7 @@ class ChromaPlugin(VectorStorePlugin):
     def connect(self) -> bool:
         """Connect to (or initialize) Chroma."""
         try:
-            import chromadb  # type: ignore[import-untyped]
+            import chromadb
 
             if self.use_http:
                 self._client = chromadb.HttpClient(host=self.host, port=self.port)
@@ -112,7 +112,7 @@ class ChromaPlugin(VectorStorePlugin):
         try:
             col = self._client.get_collection(collection)
             ids = [str(uuid.uuid4()) for _ in vectors]
-            col.add(embeddings=vectors, metadatas=metadata, ids=ids)  # type: ignore[arg-type]
+            col.add(embeddings=vectors, metadatas=metadata, ids=ids)
             return ids
         except Exception as exc:
             logger.error("insert failed: %s", exc)
