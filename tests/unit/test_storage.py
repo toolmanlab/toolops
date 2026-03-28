@@ -26,7 +26,7 @@ class TestClickHouseClient:
         assert result == []
         call_args = mock.query.call_args
         sql = call_args[0][0]
-        assert "FROM metrics" in sql
+        assert "FROM otel_metrics_sum" in sql
         assert "WHERE" not in sql
 
     def test_query_metrics_with_service_filter(self) -> None:
