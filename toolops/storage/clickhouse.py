@@ -289,6 +289,7 @@ class ClickHouseClient:
                 f"sum(total_tokens) AS total_tokens, "
                 f"sum(input_tokens) AS input_tokens, "
                 f"sum(output_tokens) AS output_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
                 f"count() AS message_count, "
                 f"min(timestamp) AS first_seen, "
                 f"max(timestamp) AS last_seen "

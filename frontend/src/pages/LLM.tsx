@@ -26,15 +26,28 @@ import {
 // ── helpers ────────────────────────────────────────────────────────────────
 
 function fmtK(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  if (n >= 1_000_000_000) return parseFloat((n / 1_000_000_000).toFixed(1)) + "B";
+  if (n >= 1_000_000) return parseFloat((n / 1_000_000).toFixed(1)) + "M";
+  if (n >= 1_000) return parseFloat((n / 1_000).toFixed(1)) + "K";
   return String(n);
+}
+
+function fmtCost(usd: number): string {
+  if (usd >= 1000) return "$" + Math.round(usd).toLocaleString();
+  return "$" + usd.toFixed(2);
 }
 
 function shortProject(p: string): string {
   if (!p) return "—";
-  const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts.slice(-2).join("/");
+  let normalized = p.replace(/\\/g, "/");
+  if (normalized === "/Users/xuelin" || normalized === "/Users/xuelin/") {
+    return "~";
+  }
+  if (normalized.startsWith("/Users/xuelin/")) {
+    normalized = normalized.replace("/Users/xuelin/", "~/");
+  }
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.slice(-2).join("/") || normalized;
 }
 
 function fmtDate(ts: string): string {
@@ -121,7 +134,7 @@ export default function LLM() {
       label: "Est. Cost (USD)",
       icon: "$",
       color: "text-[#a855f7]",
-      value: ovLoading ? "…" : `$${(overview?.total_cost_usd ?? 0).toFixed(2)}`,
+      value: ovLoading ? "…" : fmtCost(overview?.total_cost_usd ?? 0),
     },
   ];
 
@@ -212,19 +225,22 @@ export default function LLM() {
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
-                  label={({ name, percent }) =>
-                    `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                  }
-                  labelLine={false}
                 >
                   {models.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Legend
-                  formatter={(v) => (
-                    <span style={{ color: "#94a3b8", fontSize: 12 }}>{v}</span>
-                  )}
+                  formatter={(value, entry: any) => {
+                    const total = (models ?? []).reduce((s, m) => s + m.total_tokens, 0);
+                    const tokens = (entry?.payload as any)?.total_tokens ?? 0;
+                    const pct = total > 0 ? ((tokens / total) * 100).toFixed(0) : "0";
+                    return (
+                      <span style={{ color: "#94a3b8", fontSize: 12 }}>
+                        {value} ({pct}%)
+                      </span>
+                    );
+                  }}
                 />
                 <Tooltip
                   contentStyle={{ background: "#1e293b", border: "1px solid #334155" }}
@@ -282,6 +298,7 @@ export default function LLM() {
                   <th className="py-2 pr-4">Project</th>
                   <th className="py-2 pr-4">Model</th>
                   <th className="py-2 pr-4 text-right">Total Tokens</th>
+                  <th className="py-2 pr-4 text-right">Cost (USD)</th>
                   <th className="py-2 pr-4 text-right">In / Out</th>
                   <th className="py-2 pr-4 text-right">Msgs</th>
                   <th className="py-2">Last Active</th>
@@ -305,6 +322,9 @@ export default function LLM() {
                     <td className="py-2 pr-4">{s.model}</td>
                     <td className="py-2 pr-4 text-right font-mono">
                       {fmtK(s.total_tokens)}
+                    </td>
+                    <td className="py-2 pr-4 text-right font-mono text-[#a855f7]">
+                      {fmtCost(s.cost_usd ?? 0)}
                     </td>
                     <td className="py-2 pr-4 text-right font-mono text-[#94a3b8]">
                       {fmtK(s.input_tokens)} / {fmtK(s.output_tokens)}

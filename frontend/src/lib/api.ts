@@ -117,6 +117,7 @@ export interface LLMSession {
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
+  cost_usd: number;
   message_count: number;
   first_seen: string;
   last_seen: string;
