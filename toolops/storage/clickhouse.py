@@ -227,6 +227,151 @@ class ClickHouseClient:
                 metrics.extend(self.query_metrics(service=svc, start=start, end=end))
         return {"trace_id": trace_id, "traces": traces, "logs": logs, "metrics": metrics}
 
+    # -- LLM usage query helpers ----------------------------------------------
+
+    _LLM_TABLE = "llm_usage"
+
+    def insert_llm_usage(self, records: list[dict[str, Any]]) -> None:
+        """Batch-insert LLM usage records into the llm_usage table."""
+        if not records:
+            return
+        columns = [
+            "timestamp", "session_id", "project", "git_branch", "model",
+            "input_tokens", "output_tokens", "cache_creation_tokens",
+            "cache_read_tokens", "total_tokens", "service_tier", "source",
+            "cc_version", "cost_usd",
+        ]
+        data = [[r[c] for c in columns] for r in records]
+        self.client.insert(self._LLM_TABLE, data, column_names=columns)
+
+    def query_llm_overview(self) -> dict[str, Any]:
+        """Aggregate totals: tokens, sessions, top model, cost."""
+        try:
+            result = self.client.query(
+                f"SELECT count() AS total_records, "
+                f"uniq(session_id) AS total_sessions, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS total_input_tokens, "
+                f"sum(output_tokens) AS total_output_tokens, "
+                f"sum(cache_creation_tokens) AS total_cache_creation_tokens, "
+                f"sum(cache_read_tokens) AS total_cache_read_tokens, "
+                f"sum(cost_usd) AS total_cost_usd "
+                f"FROM {self._LLM_TABLE}"
+            )
+            row = result.result_rows[0] if result.result_rows else (0,) * 8
+            names = result.column_names
+            stats = dict(zip(names, row, strict=False))
+        except Exception:
+            stats = {
+                "total_records": 0, "total_sessions": 0, "total_tokens": 0,
+                "total_input_tokens": 0, "total_output_tokens": 0,
+                "total_cache_creation_tokens": 0, "total_cache_read_tokens": 0,
+                "total_cost_usd": 0,
+            }
+
+        # Top model
+        try:
+            result = self.client.query(
+                f"SELECT model, count() AS cnt FROM {self._LLM_TABLE} "
+                f"GROUP BY model ORDER BY cnt DESC LIMIT 1"
+            )
+            stats["top_model"] = result.result_rows[0][0] if result.result_rows else ""
+        except Exception:
+            stats["top_model"] = ""
+
+        return stats
+
+    def query_llm_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return sessions ordered by total token consumption (descending)."""
+        try:
+            result = self.client.query(
+                f"SELECT session_id, project, git_branch, model, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens, "
+                f"count() AS message_count, "
+                f"min(timestamp) AS first_seen, "
+                f"max(timestamp) AS last_seen "
+                f"FROM {self._LLM_TABLE} "
+                f"GROUP BY session_id, project, git_branch, model "
+                f"ORDER BY total_tokens DESC "
+                f"LIMIT {limit}"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_llm_session_detail(self, session_id: str) -> list[dict[str, Any]]:
+        """Return individual usage records for a single session."""
+        try:
+            result = self.client.query(
+                f"SELECT timestamp, model, input_tokens, output_tokens, "
+                f"cache_creation_tokens, cache_read_tokens, total_tokens, "
+                f"service_tier, cc_version "
+                f"FROM {self._LLM_TABLE} "
+                f"WHERE session_id = {{session_id:String}} "
+                f"ORDER BY timestamp",
+                parameters={"session_id": session_id},
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_llm_by_project(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Aggregate usage grouped by project (cwd)."""
+        try:
+            result = self.client.query(
+                f"SELECT project, "
+                f"uniq(session_id) AS total_sessions, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens "
+                f"FROM {self._LLM_TABLE} "
+                f"GROUP BY project "
+                f"ORDER BY total_tokens DESC "
+                f"LIMIT {limit}"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_llm_by_model(self) -> list[dict[str, Any]]:
+        """Aggregate usage grouped by model."""
+        try:
+            result = self.client.query(
+                f"SELECT model, "
+                f"count() AS message_count, "
+                f"uniq(session_id) AS session_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens "
+                f"FROM {self._LLM_TABLE} "
+                f"GROUP BY model "
+                f"ORDER BY total_tokens DESC"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_llm_timeline(self, interval: str = "day") -> list[dict[str, Any]]:
+        """Aggregate token usage over time bucketed by hour or day."""
+        trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
+        try:
+            result = self.client.query(
+                f"SELECT {trunc_fn}(timestamp) AS bucket, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens, "
+                f"sum(cache_read_tokens) AS cache_read_tokens, "
+                f"count() AS message_count "
+                f"FROM {self._LLM_TABLE} "
+                f"GROUP BY bucket "
+                f"ORDER BY bucket"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
     def query_overview(self) -> dict[str, Any]:
         """Get overview stats: total requests, avg latency, error rate, cache hit rate."""
         stats: dict[str, Any] = {}

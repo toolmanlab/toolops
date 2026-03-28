@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from toolops.api.routes import correlate, infra, logs, metrics, overview, topology, traces
+from toolops.api.routes import correlate, infra, llm, logs, metrics, overview, topology, traces
 
 
 def create_app() -> FastAPI:
@@ -21,6 +21,8 @@ def create_app() -> FastAPI:
         allow_origins=[
             "http://localhost:3001",
             "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
         ],
         allow_credentials=True,
         allow_methods=["*"],
@@ -34,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(correlate.router)
     app.include_router(infra.router)
     app.include_router(topology.router)
+    app.include_router(llm.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

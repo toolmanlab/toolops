@@ -2,30 +2,36 @@
 
 > Protocol-driven 的 AI 应用可观测性 sidecar 平台
 
-## 四层架构
+## 五层架构
 
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  可视化层 — React 19 Dashboard                              │
 │  Overview / Traces / Metrics / Logs / Chain / Infra / Docs  │
+│  + LLM Usage（规划中）                                       │
 │  技术栈：Vite 8 + TypeScript + Tailwind 4 + recharts + SWR  │
 ├────────────────────────────────────────────────────────────┤
 │  API 层 — FastAPI (Python 3.13)                             │
 │  /api/overview  /api/traces  /api/metrics  /api/logs        │
 │  /api/correlate/{trace_id}   /api/infra/health              │
+│  /api/llm/* （规划中）                                       │
 ├────────────────────────────────────────────────────────────┤
 │  数据存储层 — ClickHouse 24（统一存储）                       │
 │  traces / logs / otel_metrics_gauge / otel_metrics_sum      │
-│  otel_metrics_histogram                                     │
+│  otel_metrics_histogram / llm_requests（规划中）             │
 │  MergeTree + TTL 30天 / 支持 cross-JOIN 关联查询             │
 ├────────────────────────────────────────────────────────────┤
 │  数据采集层                                                  │
 │  OTel Collector (OTLP push)  │  Prometheus (pull)  │  Loki  │
 │  :4317 gRPC / :4318 HTTP     │  :9090              │  :3100  │
+│  LLM Gateway (:9010, 规划中) │  CC Collector (规划中)        │
 ├────────────────────────────────────────────────────────────┤
 │  部署管理层 — Git webhook → build → rolling deploy（待实现）  │
 └────────────────────────────────────────────────────────────┘
 ```
+
+> **LLM Gateway + CC Collector** 是 2026-03-29 新增的第五层能力。
+> 详见 [LLM Gateway 需求文档](llm-gateway-requirements.md)。
 
 ## 各层职责
 

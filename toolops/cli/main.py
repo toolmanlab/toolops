@@ -43,5 +43,44 @@ def demo(
     )
 
 
+collect_app = typer.Typer(help="Data collector commands.")
+app.add_typer(collect_app, name="collect")
+
+
+@collect_app.command("cc")
+def collect_cc(
+    clickhouse_host: str = typer.Option("localhost", help="ClickHouse host"),
+    clickhouse_port: int = typer.Option(8123, help="ClickHouse HTTP port"),
+    clickhouse_user: str = typer.Option("default", help="ClickHouse user"),
+    clickhouse_password: str = typer.Option("", help="ClickHouse password"),
+    clickhouse_database: str = typer.Option("toolops", help="ClickHouse database"),
+    dry_run: bool = typer.Option(False, help="Parse but do not insert into ClickHouse"),
+) -> None:
+    """Scan Claude Code local session files and write usage to ClickHouse."""
+    from toolops.collector.cc_collector import ClaudeCodeCollector
+    from toolops.config.settings import ClickHouseSettings
+    from toolops.storage.clickhouse import ClickHouseClient
+
+    console.print("[bold]Scanning Claude Code sessions...[/bold]")
+    collector = ClaudeCodeCollector()
+    usages = collector.collect()
+    console.print(f"Found [bold green]{len(usages)}[/bold green] usage records.")
+
+    if dry_run:
+        console.print("[yellow]Dry-run mode — skipping ClickHouse insert.[/yellow]")
+        return
+
+    settings = ClickHouseSettings(
+        host=clickhouse_host,
+        port=clickhouse_port,
+        user=clickhouse_user,
+        password=clickhouse_password,
+        database=clickhouse_database,
+    )
+    client = ClickHouseClient(settings)
+    inserted = collector.ingest_to_clickhouse(client, usages)
+    console.print(f"Inserted [bold green]{inserted}[/bold green] records into ClickHouse.")
+
+
 if __name__ == "__main__":
     app()

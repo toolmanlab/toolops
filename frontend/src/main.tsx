@@ -9,6 +9,7 @@ import Metrics from "./pages/Metrics";
 import Logs from "./pages/Logs";
 import Chain from "./pages/Chain";
 import Infra from "./pages/Infra";
+import LLM from "./pages/LLM";
 import Docs from "./pages/Docs";
 
 createRoot(document.getElementById("root")!).render(
@@ -22,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="logs" element={<Logs />} />
           <Route path="chain" element={<Chain />} />
           <Route path="infra" element={<Infra />} />
+          <Route path="llm" element={<LLM />} />
           <Route path="docs" element={<Docs />} />
         </Route>
       </Routes>

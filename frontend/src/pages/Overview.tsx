@@ -4,7 +4,7 @@ const statCards = [
   {
     key: "total_requests" as const,
     label: "Total Requests",
-    icon: "📊 ",
+    icon: "#",
     color: "text-[#3b82f6]",
     format: (v: number) => v.toLocaleString(),
     suffix: "",
@@ -12,7 +12,7 @@ const statCards = [
   {
     key: "avg_latency_ms" as const,
     label: "Avg Latency (ms)",
-    icon: "⏱ ",
+    icon: "~",
     color: "text-[#f97316]",
     format: (v: number) => v.toFixed(1),
     suffix: "",
@@ -20,7 +20,7 @@ const statCards = [
   {
     key: "error_rate" as const,
     label: "Error Rate (%)",
-    icon: "❌ ",
+    icon: "!",
     color: "text-[#ef4444]",
     format: (v: number) => v.toFixed(2),
     suffix: "%",
@@ -28,7 +28,7 @@ const statCards = [
   {
     key: "cache_hit_rate" as const,
     label: "Cache Hit Rate (%)",
-    icon: "🎯 ",
+    icon: "%",
     color: "text-[#22c55e]",
     format: (v: number) => v.toFixed(2),
     suffix: "%",

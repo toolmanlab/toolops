@@ -35,3 +35,26 @@ CREATE TABLE IF NOT EXISTS logs (
 ) ENGINE = MergeTree()
 ORDER BY (service, timestamp)
 TTL toDateTime(timestamp) + INTERVAL 30 DAY;
+
+-- LLM usage table (Claude Code and other LLM session data)
+CREATE TABLE IF NOT EXISTS llm_usage (
+    timestamp DateTime64(3),
+    session_id String,
+    project String,
+    git_branch String,
+    model String,
+    input_tokens UInt64,
+    output_tokens UInt64,
+    cache_creation_tokens UInt64,
+    cache_read_tokens UInt64,
+    total_tokens UInt64,
+    service_tier String,
+    source String DEFAULT 'claude_code',
+    cc_version String,
+    cost_usd Float64 DEFAULT 0,
+    INDEX idx_session session_id TYPE bloom_filter GRANULARITY 4,
+    INDEX idx_project project TYPE bloom_filter GRANULARITY 4,
+    INDEX idx_model model TYPE bloom_filter GRANULARITY 4
+) ENGINE = MergeTree()
+ORDER BY (timestamp, session_id)
+TTL toDateTime(timestamp) + INTERVAL 90 DAY;
