@@ -1,36 +1,46 @@
-"""ToolOps CLI — main Typer application."""
+"""ToolOps CLI — manage the observability stack."""
 
 from __future__ import annotations
+
+import subprocess
 
 import typer
 from rich.console import Console
 
-from toolops.cli.env import app as env_app
-from toolops.cli.init import init_command
-from toolops.cli.status import status_command
-
-app = typer.Typer(
-    name="toolops",
-    help="ToolOps — AI app infrastructure, plug and play.",
-    add_completion=False,
-    rich_markup_mode="rich",
-)
+app = typer.Typer(name="toolops", help="AI application observability platform CLI")
 console = Console()
 
-# ── Sub-commands ──────────────────────────────────────────────
-app.add_typer(env_app, name="env", help="Manage deployment environments.")
-app.command("init")(init_command)
-app.command("status")(status_command)
+
+@app.command()
+def up() -> None:
+    """Start all services via docker compose."""
+    console.print("[bold green]Starting ToolOps stack...[/bold green]")
+    subprocess.run(["docker", "compose", "up", "-d"], check=True)
 
 
-@app.callback(invoke_without_command=True)
-def root(ctx: typer.Context) -> None:
-    """Show help when no sub-command is given."""
-    if ctx.invoked_subcommand is None:
-        console.print(
-            "[bold cyan]ToolOps[/bold cyan] — AI app infrastructure, plug and play.\n"
-            "Run [green]toolops --help[/green] to see available commands."
-        )
+@app.command()
+def down() -> None:
+    """Stop all services."""
+    console.print("[bold red]Stopping ToolOps stack...[/bold red]")
+    subprocess.run(["docker", "compose", "down"], check=True)
+
+
+@app.command()
+def status() -> None:
+    """Show service status."""
+    subprocess.run(["docker", "compose", "ps"], check=True)
+
+
+@app.command()
+def demo(
+    scenario: str = typer.Option("normal", help="Demo scenario name"),
+) -> None:
+    """Run the demo app with a specific scenario."""
+    console.print(f"[bold]Running demo scenario: {scenario}[/bold]")
+    subprocess.run(
+        ["docker", "compose", "run", "-e", f"DEMO_SCENARIO={scenario}", "demo-app"],
+        check=True,
+    )
 
 
 if __name__ == "__main__":

@@ -1,41 +1,35 @@
-.PHONY: install dev lint fmt typecheck test test-cov clean
-
-PYTHON := python3
-PKG    := toolops
-
-install:
-	pip install -e .
+.PHONY: dev test up down status lint typecheck
 
 dev:
-	pip install -e ".[dev,all]"
-
-lint:
-	ruff check $(PKG) tests
-
-fmt:
-	ruff format $(PKG) tests
-
-typecheck:
-	mypy $(PKG)
+	uv run uvicorn toolops.api.app:create_app --factory --reload --port 9000
 
 test:
-	pytest tests/ -v
+	uv run pytest tests/unit/ -v
 
-test-cov:
-	pytest tests/ --cov=$(PKG) --cov-report=html --cov-report=term-missing
+test-all:
+	uv run pytest tests/ -v
 
-clean:
-	rm -rf dist build .eggs *.egg-info .mypy_cache .ruff_cache .pytest_cache htmlcov .coverage
-
-# ── Docker helpers ────────────────────────────────────────────
 up:
 	docker compose up -d
 
 down:
 	docker compose down
 
-logs:
-	docker compose logs -f
-
 status:
-	toolops status
+	docker compose ps
+
+lint:
+	uv run ruff check toolops/ tests/
+	uv run ruff format --check toolops/ tests/
+
+format:
+	uv run ruff check --fix toolops/ tests/
+	uv run ruff format toolops/ tests/
+
+typecheck:
+	uv run mypy toolops/
+
+clean:
+	docker compose down -v
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	rm -rf .coverage .mypy_cache .pytest_cache .ruff_cache

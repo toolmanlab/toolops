@@ -1,8 +1,3 @@
-"""ToolOps — AI app infrastructure, plug and play.
+"""ToolOps — AI application observability platform."""
 
-A composable infrastructure suite for AI applications.
-Pick the best wheels; don't reinvent them.
-"""
-
-__version__ = "0.1.0"
-__all__ = ["__version__"]
+__version__ = "0.2.0"
