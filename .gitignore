@@ -33,3 +33,5 @@ venv/
 # Logs
 *.log
 logs/
+.coverage
+docs/screenshots/*.png
