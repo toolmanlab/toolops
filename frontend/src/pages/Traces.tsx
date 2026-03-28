@@ -39,13 +39,15 @@ function SpanTree({ spans }: { spans: Trace[] }) {
             className={
               span.StatusCode === "ERROR"
                 ? "text-[#ef4444]"
-                : "text-[#22c55e]"
+                : span.StatusCode === "OK"
+                  ? "text-[#22c55e]"
+                  : "text-[#94a3b8]"
             }
           >
             {span.SpanName}
           </span>
           <span className="font-mono text-[#94a3b8] text-xs">
-            {span.DurationMs}ms
+            {Math.round(span.DurationMs)}ms
           </span>
           {span.SpanAttributes &&
             Object.entries(span.SpanAttributes).map(([k, v]) => (
@@ -130,14 +132,16 @@ export default function Traces() {
                       <div className="py-2 pr-4 flex-1">{t.ServiceName}</div>
                       <div className="py-2 pr-4 flex-1">{t.SpanName}</div>
                       <div className="py-2 pr-4 flex-none w-24 text-right font-mono">
-                        {t.DurationMs}
+                        {Math.round(t.DurationMs)}ms
                       </div>
                       <div className="py-2 flex-none w-20">
                         <span
                           className={
                             t.StatusCode === "ERROR"
                               ? "text-[#ef4444]"
-                              : "text-[#22c55e]"
+                              : t.StatusCode === "OK"
+                                ? "text-[#22c55e]"
+                                : "text-[#94a3b8]"
                           }
                         >
                           {t.StatusCode}
@@ -160,6 +164,7 @@ export default function Traces() {
               ))}
             </tbody>
           </table>
+          <div className="text-xs text-[#94a3b8] mt-2">Showing {uniqueTraces.length} rows</div>
         </div>
       )}
     </div>

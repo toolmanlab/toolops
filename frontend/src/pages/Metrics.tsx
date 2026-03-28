@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import {
+  AreaChart,
+  Area,
   LineChart,
   Line,
   XAxis,
@@ -83,7 +85,13 @@ export default function Metrics() {
           <div className="text-[#94a3b8]">No data</div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={latencyData}>
+            <AreaChart data={latencyData}>
+              <defs>
+                <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} />
               <YAxis stroke="#94a3b8" fontSize={12} />
@@ -94,15 +102,17 @@ export default function Metrics() {
                   borderRadius: 8,
                   color: "#fff",
                 }}
+                formatter={(value) => [`${value}ms`, "avg"]}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="avg"
                 stroke="#f97316"
                 strokeWidth={2}
+                fill="url(#latencyGradient)"
                 dot={false}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -116,7 +126,13 @@ export default function Metrics() {
           <div className="text-[#94a3b8]">No data</div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={throughputData}>
+            <AreaChart data={throughputData}>
+              <defs>
+                <linearGradient id="throughputGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="time" stroke="#94a3b8" fontSize={12} />
               <YAxis stroke="#94a3b8" fontSize={12} />
@@ -127,15 +143,17 @@ export default function Metrics() {
                   borderRadius: 8,
                   color: "#fff",
                 }}
+                formatter={(value) => [`${value} req/min`, "rpm"]}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="rpm"
                 stroke="#3b82f6"
                 strokeWidth={2}
+                fill="url(#throughputGradient)"
                 dot={false}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </div>

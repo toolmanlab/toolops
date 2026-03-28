@@ -4,30 +4,34 @@ const statCards = [
   {
     key: "total_requests" as const,
     label: "Total Requests",
-    icon: "# ",
+    icon: "📊 ",
     color: "text-[#3b82f6]",
     format: (v: number) => v.toLocaleString(),
+    suffix: "",
   },
   {
     key: "avg_latency_ms" as const,
     label: "Avg Latency (ms)",
-    icon: "~ ",
+    icon: "⏱ ",
     color: "text-[#f97316]",
     format: (v: number) => v.toFixed(1),
+    suffix: "",
   },
   {
     key: "error_rate" as const,
     label: "Error Rate (%)",
-    icon: "! ",
+    icon: "❌ ",
     color: "text-[#ef4444]",
     format: (v: number) => v.toFixed(2),
+    suffix: "%",
   },
   {
     key: "cache_hit_rate" as const,
     label: "Cache Hit Rate (%)",
-    icon: "$ ",
+    icon: "🎯 ",
     color: "text-[#22c55e]",
     format: (v: number) => v.toFixed(2),
+    suffix: "%",
   },
 ];
 
@@ -60,7 +64,7 @@ export default function Overview() {
             ) : (
               <div className={`text-2xl font-mono font-bold ${card.color}`}>
                 <span className="text-lg opacity-60">{card.icon}</span>
-                {overview ? card.format(overview[card.key]) : "--"}
+                {overview ? card.format(overview[card.key]) + card.suffix : "--"}
               </div>
             )}
           </div>
@@ -97,13 +101,15 @@ export default function Overview() {
                     </td>
                     <td className="py-2 pr-4">{t.ServiceName}</td>
                     <td className="py-2 pr-4">{t.SpanName}</td>
-                    <td className="py-2 pr-4 text-right font-mono">{t.DurationMs}</td>
+                    <td className="py-2 pr-4 text-right font-mono">{Math.round(t.DurationMs)}ms</td>
                     <td className="py-2 pr-4">
                       <span
                         className={
                           t.StatusCode === "ERROR"
                             ? "text-[#ef4444]"
-                            : "text-[#22c55e]"
+                            : t.StatusCode === "OK"
+                              ? "text-[#22c55e]"
+                              : "text-[#94a3b8]"
                         }
                       >
                         {t.StatusCode}
@@ -114,6 +120,7 @@ export default function Overview() {
                 ))}
               </tbody>
             </table>
+            <div className="text-xs text-[#94a3b8] mt-2">Showing {traces.length} rows</div>
           </div>
         )}
       </div>

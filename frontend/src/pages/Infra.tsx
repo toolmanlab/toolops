@@ -13,6 +13,7 @@ type HealthState = "checking" | "healthy" | "unreachable";
 export default function Infra() {
   const [statuses, setStatuses] = useState<Record<string, HealthState>>({});
   const [components, setComponents] = useState<InfraStatus[]>([]);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   const checkAll = useCallback(async () => {
     try {
@@ -31,6 +32,11 @@ export default function Infra() {
           Object.keys(prev).map((k) => [k, "unreachable" as const])
         )
       );
+    } finally {
+      const now = new Date();
+      setLastChecked(
+        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`
+      );
     }
   }, []);
 
@@ -48,7 +54,10 @@ export default function Infra() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">Infrastructure Status</h2>
+      <h2 className="text-lg font-semibold mb-1">Infrastructure Status</h2>
+      {lastChecked && (
+        <div className="text-xs text-[#94a3b8] mb-4">Last checked: {lastChecked}</div>
+      )}
       <div className="grid grid-cols-3 gap-4">
         {allComponents.map((c) => {
           const status = statuses[c.name] || (c.healthy ? "healthy" : "checking");

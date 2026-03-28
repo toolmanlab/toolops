@@ -123,6 +123,7 @@ export default function Logs() {
                 ))}
               </tbody>
             </table>
+            <div className="text-xs text-[#94a3b8] mt-2">Showing {logs.length} rows</div>
           </div>
         )}
       </div>
