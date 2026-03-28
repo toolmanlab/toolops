@@ -98,6 +98,27 @@ services:
       timeout: 5s
       retries: 5
 
+  toolops-gateway:
+    image: toolops-toolops-api:latest
+    ports:
+      - "9010:9010"
+    volumes:
+      - ./toolops:/app/toolops:ro
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_DATABASE: toolops
+      TOOLOPS_GATEWAY_PORT: "9010"
+    command: ["uvicorn", "toolops.gateway.proxy:app", "--host", "0.0.0.0", "--port", "9010"]
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9010/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   clickhouse-data:
   prometheus-data:
