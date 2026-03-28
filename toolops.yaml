@@ -1,0 +1,87 @@
+# toolops.yaml — Application topology descriptor
+# This file tells ToolOps what your app looks like: services, roles, and relationships.
+# ToolOps uses this to tailor dashboards, alerts, and health checks.
+
+version: "1"
+
+app:
+  name: toolops
+  description: "AI app observability platform (self-monitoring dogfood)"
+
+services:
+  toolops-api:
+    role: api-gateway
+    port: 9000
+    healthcheck: /health
+    metrics:
+      path: /metrics
+      format: prometheus
+    depends_on:
+      - clickhouse
+      - otel-collector
+
+  demo-app:
+    role: ai-app
+    port: 8080
+    healthcheck: /health
+    metrics:
+      path: /metrics
+      format: prometheus
+    ai:
+      pipeline: rag
+      stages:
+        - embedding
+        - vector_search
+        - llm_generate
+    depends_on:
+      - otel-collector
+
+  clickhouse:
+    role: metadata-store
+    port: 8123
+    healthcheck: /ping
+    storage:
+      engine: clickhouse
+      tables:
+        - traces
+        - logs
+        - otel_metrics_sum
+        - otel_metrics_gauge
+        - otel_metrics_histogram
+
+  otel-collector:
+    role: collector
+    ports:
+      grpc: 4317
+      http: 4318
+    receivers:
+      - otlp
+    exporters:
+      - clickhouse
+
+  prometheus:
+    role: metrics-scraper
+    port: 9090
+    healthcheck: /-/healthy
+    scrape_targets:
+      - demo-app
+      - toolops-api
+
+  loki:
+    role: log-aggregator
+    port: 3100
+    healthcheck: /ready
+
+# Roles define how ToolOps interprets each service in the dashboard.
+# Built-in roles:
+#   api-gateway      — Entry point, track request rate / latency / errors
+#   ai-app           — AI workload, track pipeline stages + token usage
+#   vector-store     — Embedding storage, track query latency / recall
+#   metadata-store   — Persistent storage (PG, ClickHouse, etc.)
+#   cache            — Cache layer, track hit/miss ratio
+#   llm-provider     — LLM API, track token cost / rate limits / latency
+#   collector        — Telemetry collector (OTel, etc.)
+#   metrics-scraper  — Metrics pull agent (Prometheus, etc.)
+#   log-aggregator   — Log ingestion (Loki, Fluentd, etc.)
+#   graph-store      — Graph database (Neo4j, etc.)
+#   custom           — Freeform, no built-in dashboard logic

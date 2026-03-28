@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from toolops.api.routes import correlate, infra, logs, metrics, overview, traces
+from toolops.api.routes import correlate, infra, logs, metrics, overview, topology, traces
 
 
 def create_app() -> FastAPI:
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(logs.router)
     app.include_router(correlate.router)
     app.include_router(infra.router)
+    app.include_router(topology.router)
 
     @app.get("/health")
     def health() -> dict[str, str]:
