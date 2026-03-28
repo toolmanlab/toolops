@@ -1,81 +1,166 @@
-# ToolOps — References
+# ToolOps
 
-> 持续更新的参考文献库。论文、竞品、开源项目、技术博客。
-> 每条标注：关联模块 + 对我们的启发/警示 + 状态（待读/已读/已应用）
+> AI app infrastructure, plug and play.
+
+Protocol-driven observability sidecar for AI applications. Unified traces, metrics, and logs — all correlated by `trace_id` in a single ClickHouse store.
+
+## Why ToolOps?
+
+Existing AI observability tools (LangFuse, Arize Phoenix, LangSmith) are SaaS-first or tightly coupled to specific frameworks. Generic PaaS platforms (Coolify, Dokploy) don't understand AI application topology.
+
+**ToolOps fills the gap:** a self-hosted, protocol-driven platform that understands your AI stack — from embedding latency to LLM token spend to cache hit rates — with cross-signal correlation out of the box.
+
+### Key Differentiators
+
+- **Unified Storage** — ClickHouse stores traces, logs, and metrics in the same database. Cross-JOIN them by `trace_id` to answer "why was this query slow?"
+- **AI-Native Dashboard** — Not another Grafana clone. Purpose-built views for RAG pipeline steps, LLM token economics, and retrieval quality.
+- **Protocol-Driven** — `toolops.yaml` declares your app topology (api-gateway, vector-store, llm-provider). ToolOps understands what each service does.
+- **~20 Lines to Integrate** — Add OTel SDK, set one env var, write a `toolops.yaml`. That's it.
+
+## Architecture
+
+```
+┌───────────────────────────────────────────────────┐
+│  Visualization — React Dashboard                   │
+│  Overview │ Traces │ Metrics │ Logs │ Chain │ Infra │
+├───────────────────────────────────────────────────┤
+│  Storage — ClickHouse (unified)                    │
+│  traces │ logs │ otel_metrics_*                    │
+│  MergeTree + TTL 30d │ cross-JOIN correlation      │
+├───────────────────────────────────────────────────┤
+│  Collection                                        │
+│  OTel Collector (push) │ Prometheus (pull) │ Loki   │
+│  gRPC :4317 / HTTP :4318 │ :9090          │ :3100  │
+├───────────────────────────────────────────────────┤
+│  Deployment — Git webhook → build → rolling deploy │
+│  (coming soon)                                     │
+└───────────────────────────────────────────────────┘
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Docker & Docker Compose v2
+- Node.js 18+ (for frontend dev)
+- Python 3.11+ (for backend dev)
+
+### 1. Start Infrastructure
+
+```bash
+git clone https://github.com/toolmanlab/toolops.git
+cd toolops
+docker compose up -d
+```
+
+This starts 6 containers:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| ClickHouse | 8123 | Unified telemetry storage |
+| OTel Collector | 4317, 4318 | Receives OTLP traces/logs/metrics |
+| Prometheus | 9090 | Scrapes /metrics endpoints |
+| Loki | 3100 | Docker log collection |
+| demo-app | 8081 | Simulated RAG application |
+| toolops-api | 9003 | Dashboard backend (FastAPI) |
+
+### 2. Start Frontend (dev mode)
+
+```bash
+cd frontend
+npm install
+npm run dev
+# → http://localhost:5173
+```
+
+### 3. Verify Data Flow
+
+The demo-app generates background traffic (~1 req/s) simulating a RAG pipeline. Within seconds you should see:
+
+- **Overview**: Request count, avg latency, error rate
+- **Traces**: Individual spans (embedding → vector_search → llm_generate)
+- **Metrics**: Latency and throughput charts
+- **Logs**: Application logs with severity filtering
+- **Infra**: All 6 services green
+
+## Dashboard Pages
+
+### Overview
+Top-level KPIs: total requests, average latency, error rate, cache hit rate. Plus a quick-glance table of recent traces.
+
+### Traces
+Full span list ordered by time. Each RAG query produces spans for `embedding`, `vector_search`, and `llm_generate` — immediately visible which step is the bottleneck.
+
+### Metrics
+Time-series charts (recharts) showing avg latency per minute and request throughput. Data aggregated from ClickHouse traces.
+
+### Logs
+Filterable by severity (INFO/WARN/ERROR) with full-text body search. Logs flow through OTel Logs SDK → Collector → ClickHouse.
+
+### Chain (Correlation)
+Enter a `trace_id` → see the complete call chain (all spans + associated logs + metrics in the same time window). The core debugging workflow: user reports slow query → grab trace_id → pinpoint the bottleneck.
+
+### Infra
+Health status cards for all infrastructure components. Backend proxy checks (no browser CORS issues). Auto-refreshes every 15 seconds.
+
+## Project Structure
+
+```
+toolops/
+├── config/                     # Infrastructure configs
+│   ├── otel-collector.yaml     # OTel Collector pipelines
+│   ├── prometheus.yml          # Scrape targets
+│   └── loki-config.yaml        # Loki storage config
+├── demo-app/                   # Simulated RAG application
+│   ├── main.py                 # FastAPI + background traffic gen
+│   ├── otel_setup.py           # OTel SDK init (traces + logs)
+│   └── scenarios.py            # Fault scenarios (normal/degraded/spike)
+├── frontend/                   # React Dashboard (Vite + TS)
+│   └── src/pages/              # 6 page components
+├── toolops/                    # Backend Python package
+│   ├── api/routes/             # FastAPI routes
+│   ├── collector/              # Collector client wrappers
+│   ├── config/                 # Settings management
+│   └── storage/clickhouse.py   # Query helpers
+├── tests/                      # Unit / Integration / E2E
+├── docker-compose.yml          # Full stack orchestration
+└── pyproject.toml              # Python package config
+```
+
+## Tech Stack
+
+**Backend:** Python 3.13, FastAPI, clickhouse-connect, OpenTelemetry SDK
+
+**Frontend:** React 18, TypeScript, Vite, recharts, TailwindCSS
+
+**Infrastructure:** ClickHouse, OpenTelemetry Collector (contrib), Prometheus, Loki
+
+**Dev Tools:** pytest, mypy, ruff
+
+## Design Decisions
+
+See [docs/architecture.md](docs/architecture.md) for detailed rationale on:
+- Why ClickHouse as unified storage (not separate stores per signal)
+- Why a custom dashboard (not Grafana)
+- Why protocol-driven topology (`toolops.yaml`)
+
+## Roadmap
+
+- [x] OTel traces → ClickHouse → Dashboard
+- [x] Prometheus metrics → Dashboard charts
+- [x] OTel logs → ClickHouse → Dashboard
+- [x] Cross-signal correlation (Chain page)
+- [x] Infrastructure health monitoring
+- [ ] `toolops.yaml` topology spec + auto-discovery
+- [ ] Deployment management (Git webhook → rolling deploy)
+- [ ] LLM-specific metrics (token cost, latency percentiles by model)
+- [ ] Alert rules and notification channels
+- [ ] Production Docker images + Helm chart
+
+## License
+
+MIT
 
 ---
 
-## 📄 论文
-
-### 可观测性 & MLOps
-
-| 论文 | 关键发现 | 关联模块 | 对 ToolOps 的影响 | 状态 |
-|------|---------|---------|------------------|------|
-| [From Static Templates to Dynamic Runtime Graphs](https://arxiv.org/abs/2603.22386) (2026-03) | LLM Agent 工作流优化综述：静态模板→动态运行图 | Workflow 模板 | ToolOps 的 stacks/ 模板设计可参考"动态组合"思路 | ⏳ 待读 |
-| [AI-Generated Code Is Not Reproducible (Yet)](https://arxiv.org/abs/2512.22387) (2025-12) | LLM 生成代码的依赖缺口实证 | CI/CD 模板 | ToolOps 的 CI 模板需考虑依赖锁定和可复现性 | ⏳ 待读 |
-
-### Agent 安全
-
-| 论文 | 关键发现 | 关联模块 | 对 ToolOps 的影响 | 状态 |
-|------|---------|---------|------------------|------|
-| [MCP Security Bench](https://arxiv.org/abs/2510.15994) (2025-10) | MCP 协议攻击面基准测试 | 安全配置 | ToolOps 管理的 MCP 服务需要安全默认配置 | ⏳ 待读 |
-| [Agent Audit](https://arxiv.org/abs/2603.22853) (2026-03) | LLM Agent 应用安全分析系统 | 安全检查 | ToolOps 可考虑集成安全扫描模板 | ⏳ 待读 |
-| [Mind Your HEARTBEAT!](https://arxiv.org/abs/2603.23064) (2026-03) | Agent 后台执行导致静默内存污染 | 运行时安全 | 部署 Agent 服务时的内存隔离配置参考 | ⏳ 待读 |
-
----
-
-## 🔧 开源项目 — 竞品/参考
-
-### 直接参考（AI 应用基础设施）
-
-| 项目 | Stars | 定位 | 和 ToolOps 的关系 | 监控频率 |
-|------|-------|------|------------------|---------|
-| [Langfuse](https://github.com/langfuse/langfuse) | ~47K | MIT, LLM 可观测性 (tracing/evals/prompt mgmt) | 可作为 ToolOps 监控层的可选组件 | 月度 |
-| [OpenLIT](https://github.com/openlit/openlit) | ~3K | Apache 2.0, OTel-native LLM 可观测性 | 轻量替代 Langfuse，44+ provider 支持 | 月度 |
-| [LiteLLM](https://github.com/BerriAI/litellm) | ~20K | LLM 统一 API 代理 + 管理 | ToolOps 的 LLM 层可选组件 | 月度 |
-| [Coolify](https://github.com/coollabsio/coolify) | ~40K | 自托管 PaaS (Heroku 替代) | 通用部署参考，但不是 AI-specific | 季度 |
-
-### 部署平台参考
-
-| 项目 | Stars | 参考价值 | 状态 |
-|------|-------|---------|------|
-| [Dify](https://github.com/langgenius/dify) | ~80K | Low-code AI 平台，Docker Compose 部署模式参考 | 已分析 |
-| [AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) | ~30K | 本地 RAG 平台，简洁部署流程参考 | 了解 |
-| [Flowise](https://github.com/FlowiseAI/Flowise) | ~35K | 可视化 LLM 编排，Docker 部署参考 | 了解 |
-| [Open WebUI](https://github.com/open-webui/open-webui) | ~70K | LLM 前端 + Ollama 管理 | UI 交互参考 |
-
-### 上游依赖
-
-| 项目 | 我们用的 | 监控重点 | 频率 |
-|------|---------|---------|------|
-| [Docker Compose](https://github.com/docker/compose) | 核心编排 | V2 新特性、profiles、include | 月度 |
-| [Traefik](https://github.com/traefik/traefik) | 反向代理/负载均衡可选项 | 版本更新 | 季度 |
-| [Grafana + Prometheus](https://github.com/grafana/grafana) | 监控可选组件 | LLM 相关 dashboard 模板 | 季度 |
-
----
-
-## 📝 技术博客/文章
-
-| 文章 | 来源 | 关键内容 | 对 ToolOps 的影响 |
-|------|------|---------|------------------|
-| ByteDance HiAgent 2.0 架构 (2026) | 内部分享 | 大规模 Agent 基础设施 | 组件编排思路参考（规模差距大但原则可借鉴） |
-| Uber Michelangelo (2024) | Uber Blog | ML 平台架构 | 配置管理 + 环境切换设计参考 |
-| Ramp CPO: AI 原生公司手册 (2026-03) | HN | L0-L3 AI 成熟度框架 | ToolOps 可按 L0-L3 提供不同 stack 模板 |
-
----
-
-## ⚠️ 踩坑预警
-
-| 风险 | 来源 | 预防措施 |
-|------|------|---------|
-| Docker Compose 组件版本冲突 | 常见运维坑 | 每个 stack 模板锁定组件版本，提供升级脚本 |
-| Milvus etcd/MinIO 内存占用 | P1 实际经验 | 轻量模式默认 SQLite/本地存储，重型模式才启用 |
-| LLM API key 泄露 | 常见安全问题 | .env.example + .gitignore + 启动时校验 |
-| 模型下载慢/断点续传 | 国内网络 | 提供镜像源配置（HuggingFace mirror / ModelScope） |
-| Langfuse 版本升级破坏 schema | 社区反馈 | pin 版本 + 数据库 migration 测试 |
-
----
-
-## 📅 更新日志
-
-- **2026-03-26**: 初始创建。纳入 3/25 竞品调研 + Pulse 论文推送
+*Built by [toolmanlab](https://github.com/toolmanlab) — the tool shop for AI builders.*
