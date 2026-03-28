@@ -98,7 +98,7 @@ def recalculate_cost(
     ClickHouse SQL.
     """
     from toolops.config.settings import ClickHouseSettings
-    from toolops.pricing.models import PRICING_TABLE, _lookup_pricing
+    from toolops.pricing.models import _lookup_pricing
     from toolops.storage.clickhouse import ClickHouseClient
 
     settings = ClickHouseSettings(
@@ -190,6 +190,38 @@ def recalculate_cost(
     except Exception as exc:
         console.print(f"[red]ALTER TABLE UPDATE failed: {exc}[/red]")
         raise typer.Exit(1) from exc
+
+
+@app.command("gateway")
+def gateway(
+    port: int = typer.Option(9010, "--port", help="Port to listen on"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind"),
+    log_level: str = typer.Option(
+        "info",
+        "--log-level",
+        help="Log level: debug / info / warning / error",
+    ),
+) -> None:
+    """Start the LLM Gateway proxy (transparent HTTP reverse proxy).
+
+    The gateway listens on ``host:port``, forwards requests to the upstream
+    provider, and records usage telemetry to ClickHouse.
+
+    Example — route OpenClaw through the gateway::
+
+        ANTHROPIC_BASE_URL=http://localhost:9010/anthropic toolops gateway
+    """
+    import uvicorn
+
+    console.print(
+        f"[bold green]Starting LLM Gateway on {host}:{port}...[/bold green]"
+    )
+    uvicorn.run(
+        "toolops.gateway.proxy:app",
+        host=host,
+        port=port,
+        log_level=log_level,
+    )
 
 
 if __name__ == "__main__":

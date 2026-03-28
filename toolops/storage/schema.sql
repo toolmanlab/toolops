@@ -36,6 +36,49 @@ CREATE TABLE IF NOT EXISTS logs (
 ORDER BY (service, timestamp)
 TTL toDateTime(timestamp) + INTERVAL 30 DAY;
 
+-- LLM Gateway proxy table (transparent HTTP proxy usage records)
+CREATE TABLE IF NOT EXISTS llm_gateway (
+    timestamp DateTime64(3),
+    request_id String,
+    -- Request info
+    method String,
+    path String,
+    upstream_url String,
+    -- Model info
+    model String,
+    provider String,
+    -- Token counts (parsed from response body)
+    input_tokens UInt64 DEFAULT 0,
+    output_tokens UInt64 DEFAULT 0,
+    cache_creation_tokens UInt64 DEFAULT 0,
+    cache_read_tokens UInt64 DEFAULT 0,
+    total_tokens UInt64 DEFAULT 0,
+    cost_usd Float64 DEFAULT 0,
+    -- Latency metrics
+    latency_ms Float64,
+    ttfb_ms Float64 DEFAULT 0,
+    -- HTTP info
+    status_code UInt16,
+    request_bytes UInt64 DEFAULT 0,
+    response_bytes UInt64 DEFAULT 0,
+    is_streaming UInt8 DEFAULT 0,
+    error_message String DEFAULT '',
+    -- OpenClaw metadata (parsed from request headers)
+    agent_name String DEFAULT '',
+    session_key String DEFAULT '',
+    skill_name String DEFAULT '',
+    channel String DEFAULT '',
+    -- API key (hashed, not stored in plaintext)
+    api_key_hash String DEFAULT '',
+    -- Correlation
+    trace_id String DEFAULT '',
+    INDEX idx_model model TYPE bloom_filter GRANULARITY 4,
+    INDEX idx_provider provider TYPE bloom_filter GRANULARITY 4,
+    INDEX idx_agent agent_name TYPE bloom_filter GRANULARITY 4
+) ENGINE = MergeTree()
+ORDER BY (timestamp, provider, model)
+TTL toDateTime(timestamp) + INTERVAL 90 DAY;
+
 -- LLM usage table (Claude Code and other LLM session data)
 CREATE TABLE IF NOT EXISTS llm_usage (
     timestamp DateTime64(3),

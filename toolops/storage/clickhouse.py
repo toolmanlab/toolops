@@ -227,6 +227,114 @@ class ClickHouseClient:
                 metrics.extend(self.query_metrics(service=svc, start=start, end=end))
         return {"trace_id": trace_id, "traces": traces, "logs": logs, "metrics": metrics}
 
+    # -- LLM Gateway query helpers --------------------------------------------
+
+    _GATEWAY_TABLE = "llm_gateway"
+
+    def insert_llm_gateway(self, records: list[dict[str, Any]]) -> None:
+        """Batch-insert LLM gateway proxy records into the llm_gateway table.
+
+        Args:
+            records: List of gateway record dicts.  Each dict must contain the
+                keys defined in the ``llm_gateway`` schema (all column names).
+        """
+        if not records:
+            return
+        columns = [
+            "timestamp", "request_id", "method", "path", "upstream_url",
+            "model", "provider",
+            "input_tokens", "output_tokens", "cache_creation_tokens",
+            "cache_read_tokens", "total_tokens", "cost_usd",
+            "latency_ms", "ttfb_ms",
+            "status_code", "request_bytes", "response_bytes",
+            "is_streaming", "error_message",
+            "agent_name", "session_key", "skill_name", "channel",
+            "api_key_hash", "trace_id",
+        ]
+        data = [[r.get(c, "") for c in columns] for r in records]
+        self.client.insert(self._GATEWAY_TABLE, data, column_names=columns)
+
+    def query_gateway_overview(self) -> dict[str, Any]:
+        """Aggregate gateway stats: total requests, tokens, cost, latency."""
+        try:
+            result = self.client.query(
+                f"SELECT count() AS total_requests, "
+                f"sum(input_tokens) AS total_input_tokens, "
+                f"sum(output_tokens) AS total_output_tokens, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS total_cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms, "
+                f"avg(ttfb_ms) AS avg_ttfb_ms, "
+                f"countIf(status_code >= 400) AS error_count, "
+                f"countIf(is_streaming = 1) AS streaming_count "
+                f"FROM {self._GATEWAY_TABLE}"
+            )
+            row = result.result_rows[0] if result.result_rows else (0,) * 9
+            return dict(zip(result.column_names, row, strict=False))
+        except Exception:
+            return {
+                "total_requests": 0, "total_input_tokens": 0,
+                "total_output_tokens": 0, "total_tokens": 0,
+                "total_cost_usd": 0.0, "avg_latency_ms": 0.0,
+                "avg_ttfb_ms": 0.0, "error_count": 0, "streaming_count": 0,
+            }
+
+    def query_gateway_by_provider(self) -> list[dict[str, Any]]:
+        """Aggregate gateway usage grouped by provider."""
+        try:
+            result = self.client.query(
+                f"SELECT provider, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms "
+                f"FROM {self._GATEWAY_TABLE} "
+                f"GROUP BY provider ORDER BY request_count DESC"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_gateway_by_agent(self) -> list[dict[str, Any]]:
+        """Aggregate gateway usage grouped by agent_name."""
+        try:
+            result = self.client.query(
+                f"SELECT agent_name, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms "
+                f"FROM {self._GATEWAY_TABLE} "
+                f"WHERE agent_name != '' "
+                f"GROUP BY agent_name ORDER BY total_tokens DESC"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_gateway_timeline(self, interval: str = "hour") -> list[dict[str, Any]]:
+        """Aggregate gateway request volume over time.
+
+        Args:
+            interval: Bucket size — ``"hour"`` or ``"day"``.
+
+        Returns:
+            List of time-bucketed aggregation rows.
+        """
+        trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
+        try:
+            result = self.client.query(
+                f"SELECT {trunc_fn}(timestamp) AS bucket, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS cost_usd "
+                f"FROM {self._GATEWAY_TABLE} "
+                f"GROUP BY bucket ORDER BY bucket"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
     # -- LLM usage query helpers ----------------------------------------------
 
     _LLM_TABLE = "llm_usage"
