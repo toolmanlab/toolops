@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from toolops.pricing.models import calculate_cost
+
 logger = logging.getLogger(__name__)
 
 _STATE_FILE = Path.home() / ".toolops" / "cc_collector_state.json"
@@ -226,6 +228,14 @@ class ClaudeCodeCollector(BaseCollector):
         if model == "<synthetic>" or total_tokens == 0:
             return None
 
+        cost_usd = calculate_cost(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_creation_tokens=cache_creation,
+            cache_read_tokens=cache_read,
+        )
+
         return StandardUsage(
             timestamp=ts,
             session_id=str(obj.get("sessionId", "")),
@@ -240,5 +250,5 @@ class ClaudeCodeCollector(BaseCollector):
             service_tier=str(usage.get("service_tier", "")),
             source="claude_code",
             cc_version=str(obj.get("version", "")),
-            cost_usd=0.0,
+            cost_usd=cost_usd,
         )
