@@ -11,6 +11,15 @@ or::
 
 from __future__ import annotations
 
+import os
+
+# Clear system proxy environment variables so httpx connects directly to
+# upstream providers.  The gateway itself is a proxy; it must not route
+# outbound requests through another (SOCKS/HTTP) proxy.
+for _var in ("ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy",
+             "HTTPS_PROXY", "https_proxy"):
+    os.environ.pop(_var, None)
+
 import asyncio
 import hashlib
 import json
@@ -52,6 +61,7 @@ def _get_http_client() -> httpx.AsyncClient:
             timeout=httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
             follow_redirects=True,
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+
         )
     return _http_client
 

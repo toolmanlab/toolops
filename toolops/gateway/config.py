@@ -21,6 +21,18 @@ UPSTREAM_URLS: dict[str, str] = {
     "deepseek": os.environ.get(
         "TOOLOPS_UPSTREAM_DEEPSEEK", "https://api.deepseek.com"
     ),
+    "moonshot": os.environ.get(
+        "TOOLOPS_UPSTREAM_MOONSHOT", "https://api.moonshot.cn"
+    ),
+    "minimax": os.environ.get(
+        "TOOLOPS_UPSTREAM_MINIMAX", "https://api.minimax.chat"
+    ),
+    "zhipu": os.environ.get(
+        "TOOLOPS_UPSTREAM_ZHIPU", "https://open.bigmodel.cn/api/paas"
+    ),
+    "cliproxy": os.environ.get(
+        "TOOLOPS_UPSTREAM_CLIPROXY", "http://localhost:8317"
+    ),
     "ollama": os.environ.get(
         "TOOLOPS_UPSTREAM_OLLAMA", "http://localhost:11434"
     ),

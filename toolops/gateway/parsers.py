@@ -311,6 +311,10 @@ def get_parser(provider: str) -> BaseParser:
         "anthropic": AnthropicParser(),
         "openai": OpenAIParser(),
         "deepseek": OpenAIParser(),   # DeepSeek is OpenAI-compatible
+        "moonshot": OpenAIParser(),   # Moonshot (Kimi) is OpenAI-compatible
+        "minimax": OpenAIParser(),    # MiniMax is OpenAI-compatible
+        "zhipu": OpenAIParser(),      # Zhipu (GLM) is OpenAI-compatible
+        "cliproxy": OpenAIParser(),   # Claude via CLI proxy (OpenAI-compatible)
         "ollama": OpenAIParser(),     # Ollama uses OpenAI-compatible format
     }
     return mapping.get(provider, GenericParser())
