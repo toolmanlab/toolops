@@ -189,6 +189,74 @@ export function useLLMTimeline(interval: "hour" | "day" = "day") {
   );
 }
 
+// ---------------------------------------------------------------------------
+// LLM Gateway hooks
+// ---------------------------------------------------------------------------
+
+export interface LLMGatewayOverview {
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  avg_latency_ms: number;
+  avg_ttfb_ms: number;
+  error_count: number;
+  streaming_count: number;
+}
+
+export function useLLMGatewayOverview() {
+  return useSWR<LLMGatewayOverview>("/api/llm/gateway/overview", fetcher, swrOptions);
+}
+
+export interface LLMGatewayRequest {
+  timestamp: string;
+  request_id: string;
+  agent_name: string;
+  model: string;
+  provider: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  latency_ms: number;
+  ttfb_ms: number;
+  status_code: number;
+  is_streaming: boolean;
+  error_message: string;
+}
+
+export function useLLMGatewayRequests(limit = 50) {
+  return useSWR<LLMGatewayRequest[]>(`/api/llm/gateway/requests?limit=${limit}`, fetcher, swrOptions);
+}
+
+export interface LLMGatewayAgent {
+  agent_name: string;
+  request_count: number;
+  total_tokens: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export function useLLMGatewayAgents() {
+  return useSWR<LLMGatewayAgent[]>("/api/llm/gateway/agents", fetcher, swrOptions);
+}
+
+export interface LLMGatewayLatencyBucket {
+  bucket: string;
+  p50_ms: number;
+  p95_ms: number;
+  avg_ms: number;
+}
+
+export function useLLMGatewayLatency(interval: "hour" | "day" = "hour") {
+  return useSWR<LLMGatewayLatencyBucket[]>(
+    `/api/llm/gateway/latency?interval=${interval}`,
+    fetcher,
+    swrOptions
+  );
+}
+
 export async function triggerLLMCollect(): Promise<{ status: string; collected: number; inserted: number }> {
   const res = await fetch(`${API_BASE}/api/llm/collect`, { method: "POST" });
   if (!res.ok) throw new Error(`API error: ${res.status}`);

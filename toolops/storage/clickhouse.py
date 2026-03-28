@@ -335,6 +335,45 @@ class ClickHouseClient:
         except Exception:
             return []
 
+    def query_gateway_requests(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return recent gateway requests ordered by time descending."""
+        try:
+            result = self.client.query(
+                f"SELECT timestamp, request_id, agent_name, model, provider, "
+                f"input_tokens, output_tokens, total_tokens, cost_usd, "
+                f"latency_ms, ttfb_ms, status_code, is_streaming, error_message "
+                f"FROM {self._GATEWAY_TABLE} "
+                f"ORDER BY timestamp DESC "
+                f"LIMIT {limit}"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_gateway_latency(self, interval: str = "hour") -> list[dict[str, Any]]:
+        """Aggregate gateway latency percentiles over time.
+
+        Args:
+            interval: Bucket size — ``"hour"`` or ``"day"``.
+
+        Returns:
+            List of time-bucketed rows with p50/p95 latency in ms.
+        """
+        trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
+        try:
+            result = self.client.query(
+                f"SELECT {trunc_fn}(timestamp) AS bucket, "
+                f"quantile(0.5)(latency_ms) AS p50_ms, "
+                f"quantile(0.95)(latency_ms) AS p95_ms, "
+                f"avg(latency_ms) AS avg_ms "
+                f"FROM {self._GATEWAY_TABLE} "
+                f"WHERE latency_ms > 0 "
+                f"GROUP BY bucket ORDER BY bucket"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
     # -- LLM usage query helpers ----------------------------------------------
 
     _LLM_TABLE = "llm_usage"

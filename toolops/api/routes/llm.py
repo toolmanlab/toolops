@@ -64,6 +64,40 @@ def get_llm_timeline(
     return ch.query_llm_timeline(interval=interval)
 
 
+@router.get("/gateway/overview")
+def get_gateway_overview(
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> dict[str, Any]:
+    """Return aggregate gateway stats: requests, tokens, cost, latency, error rate."""
+    return ch.query_gateway_overview()
+
+
+@router.get("/gateway/requests")
+def get_gateway_requests(
+    limit: int = 50,
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return recent gateway proxy requests ordered by time descending."""
+    return ch.query_gateway_requests(limit=limit)
+
+
+@router.get("/gateway/agents")
+def get_gateway_agents(
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return gateway usage aggregated by agent_name."""
+    return ch.query_gateway_by_agent()
+
+
+@router.get("/gateway/latency")
+def get_gateway_latency(
+    interval: str = "hour",
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return P50/P95 latency over time bucketed by hour or day."""
+    return ch.query_gateway_latency(interval=interval)
+
+
 @router.get("/collect")
 @router.post("/collect")
 def trigger_collect(
