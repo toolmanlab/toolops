@@ -35,3 +35,4 @@ venv/
 logs/
 .coverage
 docs/screenshots/*.png
+uv.lock
