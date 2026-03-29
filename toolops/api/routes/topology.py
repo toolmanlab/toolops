@@ -21,7 +21,7 @@ def get_topology() -> dict:
         try:
             topo = load_topology()
         except FileNotFoundError:
-            raise HTTPException(status_code=404, detail="toolops.yaml not found")
+            raise HTTPException(status_code=404, detail="toolops.yaml not found") from None
 
     return {
         "app": topo.app.model_dump(),

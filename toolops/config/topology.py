@@ -88,7 +88,7 @@ class ServiceConfig(BaseModel):
     labels: dict[str, str] | None = None
 
     @model_validator(mode="after")
-    def validate_role_fields(self) -> "ServiceConfig":
+    def validate_role_fields(self) -> ServiceConfig:
         if self.port is not None and self.ports is not None:
             msg = "port and ports are mutually exclusive"
             raise ValueError(msg)
@@ -121,7 +121,7 @@ class Topology(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_references(self) -> "Topology":
+    def validate_references(self) -> Topology:
         """Validate that all cross-references point to existing services."""
         service_names = set(self.services.keys())
 

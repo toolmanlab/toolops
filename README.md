@@ -16,8 +16,27 @@
 
 ---
 
-<!-- TODO: replace with actual screenshot -->
-<!-- ![Dashboard Overview](docs/screenshots/overview.png) -->
+![Dashboard Overview](docs/screenshots/overview.png)
+
+<details>
+<summary>More screenshots</summary>
+
+**Traces — distributed tracing with span timeline**
+![Traces](docs/screenshots/traces.png)
+
+**Metrics — latency & throughput time-series**
+![Metrics](docs/screenshots/metrics.png)
+
+**Logs — severity filtering & trace linking**
+![Logs](docs/screenshots/logs.png)
+
+**LLM Cost Intelligence — CC usage, model distribution, session leaderboard**
+![LLM](docs/screenshots/llm.png)
+
+**Infrastructure Health — real-time status of all components**
+![Infra](docs/screenshots/infra.png)
+
+</details>
 
 ## Why ToolOps?
 
@@ -211,8 +230,8 @@ DEMO_SCENARIO=cascade_failure docker compose up -d demo-app
 - [x] Production Docker build (nginx frontend)
 - [x] Test suite (38 unit tests, 74% coverage)
 - [ ] Deploy layer
-- [ ] CI/CD pipeline
-- [ ] Screenshot/demo GIF
+- [x] CI/CD pipeline (GitHub Actions: pytest + ruff + tsc + docker build)
+- [x] Dashboard screenshots in README
 
 ## License
 

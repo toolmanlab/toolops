@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
@@ -17,12 +17,12 @@ router = APIRouter(prefix="/api/llm", tags=["llm"])
 
 def _build_filters(
     *,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    model: Optional[str] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-    offset: Optional[int] = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    model: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    offset: int | None = None,
 ) -> dict:
     """Collect non-None filter values into a dict for ClickHouseClient methods."""
     filters: dict = {}
@@ -47,10 +47,10 @@ def _build_filters(
 
 @router.get("/overview")
 def get_llm_overview(
-    session_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    session_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> dict[str, Any]:
     """Return aggregate totals: tokens, sessions, top model, cost."""
@@ -60,10 +60,10 @@ def get_llm_overview(
 
 @router.get("/sessions")
 def get_llm_sessions(
-    session_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    session_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ch: ClickHouseClient = Depends(get_clickhouse),
@@ -116,10 +116,10 @@ def get_llm_timeline(
 
 @router.get("/gateway/overview")
 def get_gateway_overview(
-    agent_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> dict[str, Any]:
     """Return aggregate gateway stats: requests, tokens, cost, latency, error rate."""
@@ -129,10 +129,10 @@ def get_gateway_overview(
 
 @router.get("/gateway/requests")
 def get_gateway_requests(
-    agent_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ch: ClickHouseClient = Depends(get_clickhouse),
@@ -146,10 +146,10 @@ def get_gateway_requests(
 
 @router.get("/gateway/agents")
 def get_gateway_agents(
-    agent_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> list[dict[str, Any]]:
     """Return gateway usage aggregated by agent_name."""
@@ -160,10 +160,10 @@ def get_gateway_agents(
 @router.get("/gateway/latency")
 def get_gateway_latency(
     interval: str = Query("hour", pattern="^(hour|day)$"),
-    agent_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> list[dict[str, Any]]:
     """Return P50/P95 latency over time bucketed by hour or day."""
@@ -177,11 +177,11 @@ def get_gateway_latency(
 
 @router.get("/openclaw/overview")
 def get_openclaw_overview(
-    agent_id: Optional[str] = Query(None),
-    session_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    session_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> dict[str, Any]:
     """Return aggregate OpenClaw observer stats: requests, tokens, cost, avg latency."""
@@ -191,9 +191,9 @@ def get_openclaw_overview(
 
 @router.get("/openclaw/agents")
 def get_openclaw_agents(
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> list[dict[str, Any]]:
     """Return OpenClaw usage aggregated by agent_id."""
@@ -204,11 +204,11 @@ def get_openclaw_agents(
 @router.get("/openclaw/timeline")
 def get_openclaw_timeline(
     interval: str = Query("hour", pattern="^(hour|day)$"),
-    agent_id: Optional[str] = Query(None),
-    session_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    session_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     ch: ClickHouseClient = Depends(get_clickhouse),
 ) -> list[dict[str, Any]]:
     """Return OpenClaw token usage over time. interval='hour' or 'day'."""
@@ -218,11 +218,11 @@ def get_openclaw_timeline(
 
 @router.get("/openclaw/requests")
 def get_openclaw_requests(
-    agent_id: Optional[str] = Query(None),
-    session_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    session_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ch: ClickHouseClient = Depends(get_clickhouse),
@@ -234,10 +234,10 @@ def get_openclaw_requests(
 
 @router.get("/openclaw/sessions")
 def get_openclaw_sessions(
-    agent_id: Optional[str] = Query(None),
-    model: Optional[str] = Query(None),
-    start: Optional[str] = Query(None, description="ISO 8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO 8601 end datetime"),
+    agent_id: str | None = Query(None),
+    model: str | None = Query(None),
+    start: str | None = Query(None, description="ISO 8601 start datetime"),
+    end: str | None = Query(None, description="ISO 8601 end datetime"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ch: ClickHouseClient = Depends(get_clickhouse),

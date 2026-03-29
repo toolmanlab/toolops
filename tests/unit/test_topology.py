@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -14,7 +13,6 @@ from toolops.config.topology import (
     find_topology_file,
     load_topology,
 )
-
 
 MINIMAL_YAML = {
     "version": "1",

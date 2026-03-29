@@ -34,5 +34,5 @@ venv/
 *.log
 logs/
 .coverage
-docs/screenshots/*.png
+# docs/screenshots/*.png  # screenshots tracked for README
 uv.lock
