@@ -50,6 +50,59 @@ class ClickHouseClient:
         """Convert query result to list of dicts."""
         return [dict(zip(result.column_names, row, strict=False)) for row in result.result_rows]
 
+    @staticmethod
+    def _build_filter_conditions(
+        filters: dict | None,
+        *,
+        agent_field: str | None = None,
+        session_field: str | None = None,
+        timestamp_field: str = "timestamp",
+    ) -> tuple[list[str], dict[str, Any]]:
+        """Build parameterized WHERE condition fragments from a filters dict.
+
+        All values are passed via ClickHouse parameterized queries — safe against SQL
+        injection.  Returns ``(conditions_list, params_dict)``.
+        """
+        if not filters:
+            return [], {}
+        conditions: list[str] = []
+        params: dict[str, Any] = {}
+
+        agent_val = filters.get("agent_id")
+        if agent_val and agent_field:
+            conditions.append(f"{agent_field} = {{_f_agent:String}}")
+            params["_f_agent"] = str(agent_val)
+
+        session_val = filters.get("session_id")
+        if session_val and session_field:
+            conditions.append(f"{session_field} = {{_f_session:String}}")
+            params["_f_session"] = str(session_val)
+
+        model_val = filters.get("model")
+        if model_val:
+            conditions.append("model LIKE {_f_model:String}")
+            params["_f_model"] = f"%{model_val}%"
+
+        start_val = filters.get("start")
+        if start_val:
+            try:
+                dt = datetime.fromisoformat(str(start_val).replace("Z", "+00:00"))
+                conditions.append(f"{timestamp_field} >= {{_f_start:DateTime}}")
+                params["_f_start"] = dt
+            except (ValueError, TypeError):
+                pass
+
+        end_val = filters.get("end")
+        if end_val:
+            try:
+                dt = datetime.fromisoformat(str(end_val).replace("Z", "+00:00"))
+                conditions.append(f"{timestamp_field} <= {{_f_end:DateTime}}")
+                params["_f_end"] = dt
+            except (ValueError, TypeError):
+                pass
+
+        return conditions, params
+
     # -- Query helpers --------------------------------------------------------
 
     def query_traces(
@@ -254,9 +307,13 @@ class ClickHouseClient:
         data = [[r.get(c, "") for c in columns] for r in records]
         self.client.insert(self._GATEWAY_TABLE, data, column_names=columns)
 
-    def query_gateway_overview(self) -> dict[str, Any]:
+    def query_gateway_overview(self, filters: dict | None = None) -> dict[str, Any]:
         """Aggregate gateway stats: total requests, tokens, cost, latency."""
         try:
+            f_conds, f_params = self._build_filter_conditions(
+                filters, agent_field="agent_name", session_field="session_key"
+            )
+            where = f" WHERE {' AND '.join(f_conds)}" if f_conds else ""
             result = self.client.query(
                 f"SELECT count() AS total_requests, "
                 f"sum(input_tokens) AS total_input_tokens, "
@@ -267,7 +324,8 @@ class ClickHouseClient:
                 f"avg(ttfb_ms) AS avg_ttfb_ms, "
                 f"countIf(status_code >= 400) AS error_count, "
                 f"countIf(is_streaming = 1) AS streaming_count "
-                f"FROM {self._GATEWAY_TABLE}"
+                f"FROM {self._GATEWAY_TABLE}{where}",
+                parameters=f_params if f_params else None,
             )
             row = result.result_rows[0] if result.result_rows else (0,) * 9
             return dict(zip(result.column_names, row, strict=False))
@@ -295,18 +353,24 @@ class ClickHouseClient:
         except Exception:
             return []
 
-    def query_gateway_by_agent(self) -> list[dict[str, Any]]:
+    def query_gateway_by_agent(self, filters: dict | None = None) -> list[dict[str, Any]]:
         """Aggregate gateway usage grouped by agent_name."""
         try:
+            base_conds = ["agent_name != ''"]
+            f_conds, f_params = self._build_filter_conditions(
+                filters, agent_field="agent_name", session_field="session_key"
+            )
+            all_conds = base_conds + f_conds
+            where = f" WHERE {' AND '.join(all_conds)}"
             result = self.client.query(
                 f"SELECT agent_name, "
                 f"count() AS request_count, "
                 f"sum(total_tokens) AS total_tokens, "
                 f"sum(cost_usd) AS cost_usd, "
                 f"avg(latency_ms) AS avg_latency_ms "
-                f"FROM {self._GATEWAY_TABLE} "
-                f"WHERE agent_name != '' "
-                f"GROUP BY agent_name ORDER BY total_tokens DESC"
+                f"FROM {self._GATEWAY_TABLE}{where} "
+                f"GROUP BY agent_name ORDER BY total_tokens DESC",
+                parameters=f_params if f_params else None,
             )
             return self._rows_to_dicts(result)
         except Exception:
@@ -335,40 +399,53 @@ class ClickHouseClient:
         except Exception:
             return []
 
-    def query_gateway_requests(self, limit: int = 50) -> list[dict[str, Any]]:
+    def query_gateway_requests(self, limit: int = 50, filters: dict | None = None) -> list[dict[str, Any]]:
         """Return recent gateway requests ordered by time descending."""
         try:
+            f_conds, f_params = self._build_filter_conditions(
+                filters, agent_field="agent_name", session_field="session_key"
+            )
+            where = f" WHERE {' AND '.join(f_conds)}" if f_conds else ""
+            offset = int(filters.get("offset", 0)) if filters else 0
             result = self.client.query(
                 f"SELECT timestamp, request_id, agent_name, model, provider, "
                 f"input_tokens, output_tokens, total_tokens, cost_usd, "
                 f"latency_ms, ttfb_ms, status_code, is_streaming, error_message "
-                f"FROM {self._GATEWAY_TABLE} "
+                f"FROM {self._GATEWAY_TABLE}{where} "
                 f"ORDER BY timestamp DESC "
-                f"LIMIT {limit}"
+                f"LIMIT {limit} OFFSET {offset}",
+                parameters=f_params if f_params else None,
             )
             return self._rows_to_dicts(result)
         except Exception:
             return []
 
-    def query_gateway_latency(self, interval: str = "hour") -> list[dict[str, Any]]:
+    def query_gateway_latency(self, interval: str = "hour", filters: dict | None = None) -> list[dict[str, Any]]:
         """Aggregate gateway latency percentiles over time.
 
         Args:
             interval: Bucket size — ``"hour"`` or ``"day"``.
+            filters: Optional filter dict (see ``_build_filter_conditions``).
 
         Returns:
             List of time-bucketed rows with p50/p95 latency in ms.
         """
         trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
         try:
+            base_conds = ["latency_ms > 0"]
+            f_conds, f_params = self._build_filter_conditions(
+                filters, agent_field="agent_name", session_field="session_key"
+            )
+            all_conds = base_conds + f_conds
+            where = f" WHERE {' AND '.join(all_conds)}"
             result = self.client.query(
                 f"SELECT {trunc_fn}(timestamp) AS bucket, "
                 f"quantile(0.5)(latency_ms) AS p50_ms, "
                 f"quantile(0.95)(latency_ms) AS p95_ms, "
                 f"avg(latency_ms) AS avg_ms "
-                f"FROM {self._GATEWAY_TABLE} "
-                f"WHERE latency_ms > 0 "
-                f"GROUP BY bucket ORDER BY bucket"
+                f"FROM {self._GATEWAY_TABLE}{where} "
+                f"GROUP BY bucket ORDER BY bucket",
+                parameters=f_params if f_params else None,
             )
             return self._rows_to_dicts(result)
         except Exception:
@@ -391,8 +468,12 @@ class ClickHouseClient:
         data = [[r[c] for c in columns] for r in records]
         self.client.insert(self._LLM_TABLE, data, column_names=columns)
 
-    def query_llm_overview(self) -> dict[str, Any]:
+    def query_llm_overview(self, filters: dict | None = None) -> dict[str, Any]:
         """Aggregate totals: tokens, sessions, top model, cost."""
+        f_conds, f_params = self._build_filter_conditions(
+            filters, session_field="session_id"
+        )
+        where = f" WHERE {' AND '.join(f_conds)}" if f_conds else ""
         try:
             result = self.client.query(
                 f"SELECT count() AS total_records, "
@@ -403,7 +484,8 @@ class ClickHouseClient:
                 f"sum(cache_creation_tokens) AS total_cache_creation_tokens, "
                 f"sum(cache_read_tokens) AS total_cache_read_tokens, "
                 f"sum(cost_usd) AS total_cost_usd "
-                f"FROM {self._LLM_TABLE}"
+                f"FROM {self._LLM_TABLE}{where}",
+                parameters=f_params if f_params else None,
             )
             row = result.result_rows[0] if result.result_rows else (0,) * 8
             names = result.column_names
@@ -419,8 +501,9 @@ class ClickHouseClient:
         # Top model
         try:
             result = self.client.query(
-                f"SELECT model, count() AS cnt FROM {self._LLM_TABLE} "
-                f"GROUP BY model ORDER BY cnt DESC LIMIT 1"
+                f"SELECT model, count() AS cnt FROM {self._LLM_TABLE}{where} "
+                f"GROUP BY model ORDER BY cnt DESC LIMIT 1",
+                parameters=f_params if f_params else None,
             )
             stats["top_model"] = result.result_rows[0][0] if result.result_rows else ""
         except Exception:
@@ -428,9 +511,14 @@ class ClickHouseClient:
 
         return stats
 
-    def query_llm_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+    def query_llm_sessions(self, limit: int = 50, filters: dict | None = None) -> list[dict[str, Any]]:
         """Return sessions ordered by total token consumption (descending)."""
         try:
+            f_conds, f_params = self._build_filter_conditions(
+                filters, session_field="session_id"
+            )
+            where = f" WHERE {' AND '.join(f_conds)}" if f_conds else ""
+            offset = int(filters.get("offset", 0)) if filters else 0
             result = self.client.query(
                 f"SELECT session_id, project, git_branch, model, "
                 f"sum(total_tokens) AS total_tokens, "
@@ -440,10 +528,11 @@ class ClickHouseClient:
                 f"count() AS message_count, "
                 f"min(timestamp) AS first_seen, "
                 f"max(timestamp) AS last_seen "
-                f"FROM {self._LLM_TABLE} "
+                f"FROM {self._LLM_TABLE}{where} "
                 f"GROUP BY session_id, project, git_branch, model "
                 f"ORDER BY total_tokens DESC "
-                f"LIMIT {limit}"
+                f"LIMIT {limit} OFFSET {offset}",
+                parameters=f_params if f_params else None,
             )
             return self._rows_to_dicts(result)
         except Exception:
@@ -524,8 +613,12 @@ class ClickHouseClient:
 
     _OPENCLAW_TABLE = "llm_openclaw"
 
-    def query_openclaw_overview(self) -> dict[str, Any]:
-        """Aggregate OpenClaw observer stats: total requests, tokens, cost, latency."""
+    def query_openclaw_overview(self, filters: dict | None = None) -> dict[str, Any]:
+        """Aggregate OpenClaw observer stats with optional filters."""
+        conds, params = self._build_filter_conditions(
+            filters, agent_field="agent_id", session_field="session_key",
+        )
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
         try:
             result = self.client.query(
                 f"SELECT count() AS total_requests, "
@@ -534,7 +627,8 @@ class ClickHouseClient:
                 f"sum(total_tokens) AS total_tokens, "
                 f"sum(cost_usd) AS total_cost_usd, "
                 f"avg(latency_ms) AS avg_latency_ms "
-                f"FROM {self._OPENCLAW_TABLE}"
+                f"FROM {self._OPENCLAW_TABLE}{where}",
+                parameters=params,
             )
             row = result.result_rows[0] if result.result_rows else (0,) * 6
             return dict(zip(result.column_names, row, strict=False))
@@ -548,8 +642,13 @@ class ClickHouseClient:
                 "avg_latency_ms": 0.0,
             }
 
-    def query_openclaw_by_agent(self) -> list[dict[str, Any]]:
-        """Aggregate OpenClaw usage grouped by agent_id."""
+    def query_openclaw_by_agent(self, filters: dict | None = None) -> list[dict[str, Any]]:
+        """Aggregate OpenClaw usage grouped by agent_id with optional filters."""
+        conds, params = self._build_filter_conditions(
+            filters, agent_field="agent_id", session_field="session_key",
+        )
+        conds.append("agent_id != ''")
+        where = " WHERE " + " AND ".join(conds)
         try:
             result = self.client.query(
                 f"SELECT agent_id, "
@@ -559,24 +658,23 @@ class ClickHouseClient:
                 f"sum(output_tokens) AS output_tokens, "
                 f"sum(cost_usd) AS cost_usd, "
                 f"avg(latency_ms) AS avg_latency_ms "
-                f"FROM {self._OPENCLAW_TABLE} "
-                f"WHERE agent_id != '' "
-                f"GROUP BY agent_id ORDER BY total_tokens DESC"
+                f"FROM {self._OPENCLAW_TABLE}{where} "
+                f"GROUP BY agent_id ORDER BY total_tokens DESC",
+                parameters=params,
             )
             return self._rows_to_dicts(result)
         except Exception:
             return []
 
-    def query_openclaw_timeline(self, interval: str = "hour") -> list[dict[str, Any]]:
-        """Aggregate OpenClaw token usage over time.
-
-        Args:
-            interval: Bucket size — ``"hour"`` or ``"day"``.
-
-        Returns:
-            List of time-bucketed aggregation rows.
-        """
+    def query_openclaw_timeline(
+        self, interval: str = "hour", filters: dict | None = None,
+    ) -> list[dict[str, Any]]:
+        """Aggregate OpenClaw token usage over time with optional filters."""
         trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
+        conds, params = self._build_filter_conditions(
+            filters, agent_field="agent_id", session_field="session_key",
+        )
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
         try:
             result = self.client.query(
                 f"SELECT {trunc_fn}(timestamp) AS bucket, "
@@ -586,23 +684,78 @@ class ClickHouseClient:
                 f"sum(output_tokens) AS output_tokens, "
                 f"sum(cost_usd) AS cost_usd, "
                 f"avg(latency_ms) AS avg_latency_ms "
-                f"FROM {self._OPENCLAW_TABLE} "
-                f"GROUP BY bucket ORDER BY bucket"
+                f"FROM {self._OPENCLAW_TABLE}{where} "
+                f"GROUP BY bucket ORDER BY bucket",
+                parameters=params,
             )
             return self._rows_to_dicts(result)
         except Exception:
             return []
 
-    def query_openclaw_requests(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return recent OpenClaw requests ordered by time descending."""
+    def query_openclaw_requests(
+        self, limit: int = 50, offset: int = 0, filters: dict | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return recent OpenClaw requests with optional filters."""
+        conds, params = self._build_filter_conditions(
+            filters, agent_field="agent_id", session_field="session_key",
+        )
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
+        try:
+            result = self.client.query(
+                f"SELECT timestamp, run_id, session_key, agent_id, model, provider, "
+                f"input_tokens, output_tokens, total_tokens, cost_usd, "
+                f"latency_ms, trigger, channel "
+                f"FROM {self._OPENCLAW_TABLE}{where} "
+                f"ORDER BY timestamp DESC "
+                f"LIMIT {int(limit)} OFFSET {int(offset)}",
+                parameters=params,
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_openclaw_sessions(
+        self, limit: int = 50, offset: int = 0, filters: dict | None = None,
+    ) -> list[dict[str, Any]]:
+        """Aggregate OpenClaw usage grouped by session_key."""
+        conds, params = self._build_filter_conditions(
+            filters, agent_field="agent_id", session_field="session_key",
+        )
+        where = (" WHERE " + " AND ".join(conds)) if conds else ""
+        try:
+            result = self.client.query(
+                f"SELECT session_key, "
+                f"any(agent_id) AS agent_id, "
+                f"any(model) AS model, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms, "
+                f"min(timestamp) AS first_seen, "
+                f"max(timestamp) AS last_seen "
+                f"FROM {self._OPENCLAW_TABLE}{where} "
+                f"GROUP BY session_key ORDER BY total_tokens DESC "
+                f"LIMIT {int(limit)} OFFSET {int(offset)}",
+                parameters=params,
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_openclaw_session_detail(
+        self, session_key: str, limit: int = 100, offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Return all requests for a specific OpenClaw session."""
         try:
             result = self.client.query(
                 f"SELECT timestamp, run_id, agent_id, model, provider, "
                 f"input_tokens, output_tokens, total_tokens, cost_usd, "
                 f"latency_ms, trigger, channel "
                 f"FROM {self._OPENCLAW_TABLE} "
+                f"WHERE session_key = {{sk:String}} "
                 f"ORDER BY timestamp DESC "
-                f"LIMIT {limit}"
+                f"LIMIT {int(limit)} OFFSET {int(offset)}",
+                parameters={"sk": session_key},
             )
             return self._rows_to_dicts(result)
         except Exception:

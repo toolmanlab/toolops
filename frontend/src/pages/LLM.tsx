@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AreaChart,
   Area,
@@ -31,7 +31,24 @@ import {
   useOpenClawAgents,
   useOpenClawTimeline,
   useOpenClawRequests,
+  useOpenClawSessions,
+  type LLMFilters,
 } from "../lib/api";
+
+const TIME_RANGES: { label: string; value: string }[] = [
+  { label: "All", value: "" },
+  { label: "1h", value: "1" },
+  { label: "6h", value: "6" },
+  { label: "24h", value: "24" },
+  { label: "7d", value: "168" },
+  { label: "30d", value: "720" },
+];
+
+function timeRangeToISO(hours: string): { start?: string } {
+  if (!hours) return {};
+  const ms = Number(hours) * 3600_000;
+  return { start: new Date(Date.now() - ms).toISOString() };
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -107,6 +124,20 @@ type Tab = "cc" | "gateway" | "openclaw";
 export default function LLM() {
   const [tab, setTab] = useState<Tab>("cc");
 
+  // Filter state
+  const [timeRange, setTimeRange] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
+  const [modelFilter, setModelFilter] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("");
+
+  const filters: LLMFilters = useMemo(() => ({
+    ...timeRangeToISO(timeRange),
+    ...(agentFilter ? { agent_id: agentFilter } : {}),
+    ...(modelFilter ? { model: modelFilter } : {}),
+    ...(sessionFilter ? { session_id: sessionFilter } : {}),
+    limit: 50,
+  }), [timeRange, agentFilter, modelFilter, sessionFilter]);
+
   // CC Usage data
   const { data: overview, isLoading: ovLoading } = useLLMOverview();
   const { data: sessions, isLoading: sessLoading } = useLLMSessions(50);
@@ -120,11 +151,19 @@ export default function LLM() {
   const { data: gwAgents } = useLLMGatewayAgents();
   const { data: gwLatency } = useLLMGatewayLatency("hour");
 
-  // OpenClaw data
-  const { data: ocOverview, isLoading: ocOvLoading } = useOpenClawOverview();
-  const { data: ocAgents } = useOpenClawAgents();
-  const { data: ocTimeline } = useOpenClawTimeline("hour");
-  const { data: ocRequests, isLoading: ocReqLoading } = useOpenClawRequests(50);
+  // OpenClaw data (with filters)
+  const { data: ocOverview, isLoading: ocOvLoading } = useOpenClawOverview(filters);
+  const { data: ocAgents } = useOpenClawAgents(filters);
+  const { data: ocTimeline } = useOpenClawTimeline("hour", filters);
+  const { data: ocRequests, isLoading: ocReqLoading } = useOpenClawRequests(filters);
+  const { data: ocSessions } = useOpenClawSessions(filters);
+
+  // Unique agents and models for filter dropdowns
+  const agentOptions = useMemo(() => {
+    const set = new Set<string>();
+    ocAgents?.forEach((a) => set.add(a.agent_id));
+    return Array.from(set).sort();
+  }, [ocAgents]);
 
   const [collecting, setCollecting] = useState(false);
   const [collectMsg, setCollectMsg] = useState<string | null>(null);
@@ -313,6 +352,48 @@ export default function LLM() {
           </div>
         )}
       </div>
+
+      {/* ── Filter bar ────────────────────────────────────────────────── */}
+      {tab === "openclaw" && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="bg-[#0f172a] border border-[#334155] rounded px-2 py-1 text-sm text-[#e2e8f0]"
+          >
+            {TIME_RANGES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label === "All" ? "Time: All" : `Last ${r.label}`}
+              </option>
+            ))}
+          </select>
+          <select
+            value={agentFilter}
+            onChange={(e) => setAgentFilter(e.target.value)}
+            className="bg-[#0f172a] border border-[#334155] rounded px-2 py-1 text-sm text-[#e2e8f0]"
+          >
+            <option value="">Agent: All</option>
+            {agentOptions.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={sessionFilter}
+            onChange={(e) => setSessionFilter(e.target.value)}
+            placeholder="Filter session..."
+            className="bg-[#0f172a] border border-[#334155] rounded px-2 py-1 text-sm text-[#e2e8f0] placeholder-[#64748b] w-48"
+          />
+          {(timeRange || agentFilter || modelFilter || sessionFilter) && (
+            <button
+              onClick={() => { setTimeRange(""); setAgentFilter(""); setModelFilter(""); setSessionFilter(""); }}
+              className="text-sm text-[#94a3b8] hover:text-white underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── CC Usage tab ─────────────────────────────────────────────────── */}
       {tab === "cc" && (
@@ -582,6 +663,66 @@ export default function LLM() {
             </div>
           </div>
 
+          {/* Sessions table */}
+          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+            <h2 className="text-lg font-semibold mb-4">
+              Sessions
+              {sessionFilter && (
+                <button
+                  onClick={() => setSessionFilter("")}
+                  className="ml-2 text-sm text-[#3b82f6] hover:underline font-normal"
+                >
+                  Clear session filter
+                </button>
+              )}
+            </h2>
+            {!ocSessions || ocSessions.length === 0 ? (
+              <div className="text-[#94a3b8]">No data</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-[#94a3b8] border-b border-[#334155]">
+                    <tr>
+                      <th className="py-2 pr-4">Session</th>
+                      <th className="py-2 pr-4">Agent</th>
+                      <th className="py-2 pr-4">Model</th>
+                      <th className="py-2 pr-4 text-right">Requests</th>
+                      <th className="py-2 pr-4 text-right">Tokens</th>
+                      <th className="py-2 pr-4 text-right">Cost</th>
+                      <th className="py-2 pr-4 text-right">Avg Latency</th>
+                      <th className="py-2 pr-4">Last Seen</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ocSessions.map((s, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-[#334155]/50 hover:bg-[#334155]/30 cursor-pointer"
+                        onClick={() => setSessionFilter(s.session_key)}
+                      >
+                        <td className="py-2 pr-4 font-mono text-[#3b82f6] text-xs">
+                          {s.session_key}
+                        </td>
+                        <td className="py-2 pr-4">{s.agent_id}</td>
+                        <td className="py-2 pr-4 text-[#94a3b8]">{s.model}</td>
+                        <td className="py-2 pr-4 text-right font-mono">{s.request_count}</td>
+                        <td className="py-2 pr-4 text-right font-mono">{fmtK(s.total_tokens)}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-[#a855f7]">{fmtCost(s.cost_usd)}</td>
+                        <td className="py-2 pr-4 text-right font-mono">{Math.round(s.avg_latency_ms)} ms</td>
+                        <td className="py-2 pr-4 font-mono text-[#94a3b8] text-xs whitespace-nowrap">
+                          {fmtDate(s.last_seen)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="text-xs text-[#94a3b8] mt-2">
+                  {ocSessions.length} sessions — click to filter
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Recent requests table */}
           <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
             <h2 className="text-lg font-semibold mb-4">Recent Requests</h2>
@@ -596,8 +737,8 @@ export default function LLM() {
                     <tr>
                       <th className="py-2 pr-4">Time</th>
                       <th className="py-2 pr-4">Agent</th>
+                      <th className="py-2 pr-4">Session</th>
                       <th className="py-2 pr-4">Model</th>
-                      <th className="py-2 pr-4">Provider</th>
                       <th className="py-2 pr-4 text-right">Tokens (In/Out)</th>
                       <th className="py-2 pr-4 text-right">Cost</th>
                       <th className="py-2 pr-4 text-right">Latency</th>
@@ -614,8 +755,10 @@ export default function LLM() {
                           {fmtDate(r.timestamp)}
                         </td>
                         <td className="py-2 pr-4">{r.agent_id || "—"}</td>
+                        <td className="py-2 pr-4 font-mono text-xs text-[#64748b]">
+                          {r.session_key ? r.session_key.replace("agent:", "").slice(0, 20) : "—"}
+                        </td>
                         <td className="py-2 pr-4 text-[#94a3b8]">{r.model || "—"}</td>
-                        <td className="py-2 pr-4 text-[#94a3b8]">{r.provider || "—"}</td>
                         <td className="py-2 pr-4 text-right font-mono text-[#94a3b8]">
                           {fmtK(r.input_tokens)} / {fmtK(r.output_tokens)}
                         </td>

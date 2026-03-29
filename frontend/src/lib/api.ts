@@ -258,6 +258,34 @@ export function useLLMGatewayLatency(interval: "hour" | "day" = "hour") {
 }
 
 // ---------------------------------------------------------------------------
+// Shared filter types
+// ---------------------------------------------------------------------------
+
+export interface LLMFilters {
+  agent_id?: string;
+  session_id?: string;
+  model?: string;
+  start?: string;
+  end?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function buildFilterQS(filters?: LLMFilters, extra?: Record<string, string>): string {
+  const params = new URLSearchParams();
+  if (filters?.agent_id) params.set("agent_id", filters.agent_id);
+  if (filters?.session_id) params.set("session_id", filters.session_id);
+  if (filters?.model) params.set("model", filters.model);
+  if (filters?.start) params.set("start", filters.start);
+  if (filters?.end) params.set("end", filters.end);
+  if (filters?.limit) params.set("limit", String(filters.limit));
+  if (filters?.offset) params.set("offset", String(filters.offset));
+  if (extra) Object.entries(extra).forEach(([k, v]) => params.set(k, v));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+// ---------------------------------------------------------------------------
 // OpenClaw observer hooks
 // ---------------------------------------------------------------------------
 
@@ -270,8 +298,11 @@ export interface OpenClawOverview {
   avg_latency_ms: number;
 }
 
-export function useOpenClawOverview() {
-  return useSWR<OpenClawOverview>("/api/llm/openclaw/overview", fetcher, swrOptions);
+export function useOpenClawOverview(filters?: LLMFilters) {
+  return useSWR<OpenClawOverview>(
+    `/api/llm/openclaw/overview${buildFilterQS(filters)}`,
+    fetcher, swrOptions,
+  );
 }
 
 export interface OpenClawAgent {
@@ -284,8 +315,11 @@ export interface OpenClawAgent {
   avg_latency_ms: number;
 }
 
-export function useOpenClawAgents() {
-  return useSWR<OpenClawAgent[]>("/api/llm/openclaw/agents", fetcher, swrOptions);
+export function useOpenClawAgents(filters?: LLMFilters) {
+  return useSWR<OpenClawAgent[]>(
+    `/api/llm/openclaw/agents${buildFilterQS(filters)}`,
+    fetcher, swrOptions,
+  );
 }
 
 export interface OpenClawTimelineBucket {
@@ -298,17 +332,17 @@ export interface OpenClawTimelineBucket {
   avg_latency_ms: number;
 }
 
-export function useOpenClawTimeline(interval: "hour" | "day" = "hour") {
+export function useOpenClawTimeline(interval: "hour" | "day" = "hour", filters?: LLMFilters) {
   return useSWR<OpenClawTimelineBucket[]>(
-    `/api/llm/openclaw/timeline?interval=${interval}`,
-    fetcher,
-    swrOptions
+    `/api/llm/openclaw/timeline${buildFilterQS(filters, { interval })}`,
+    fetcher, swrOptions,
   );
 }
 
 export interface OpenClawRequest {
   timestamp: string;
   run_id: string;
+  session_key?: string;
   agent_id: string;
   model: string;
   provider: string;
@@ -321,11 +355,36 @@ export interface OpenClawRequest {
   channel: string;
 }
 
-export function useOpenClawRequests(limit = 50) {
+export function useOpenClawRequests(filters?: LLMFilters) {
   return useSWR<OpenClawRequest[]>(
-    `/api/llm/openclaw/requests?limit=${limit}`,
-    fetcher,
-    swrOptions
+    `/api/llm/openclaw/requests${buildFilterQS(filters)}`,
+    fetcher, swrOptions,
+  );
+}
+
+export interface OpenClawSession {
+  session_key: string;
+  agent_id: string;
+  model: string;
+  request_count: number;
+  total_tokens: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+  first_seen: string;
+  last_seen: string;
+}
+
+export function useOpenClawSessions(filters?: LLMFilters) {
+  return useSWR<OpenClawSession[]>(
+    `/api/llm/openclaw/sessions${buildFilterQS(filters)}`,
+    fetcher, swrOptions,
+  );
+}
+
+export function useOpenClawSessionDetail(sessionKey: string | null, filters?: LLMFilters) {
+  return useSWR<OpenClawRequest[]>(
+    sessionKey ? `/api/llm/openclaw/sessions/${sessionKey}${buildFilterQS(filters)}` : null,
+    fetcher, swrOptions,
   );
 }
 
