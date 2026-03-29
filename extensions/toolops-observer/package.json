@@ -1,0 +1,9 @@
+{
+  "name": "@toolops/observer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LLM usage observer plugin for ToolOps dashboard",
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  }
+}

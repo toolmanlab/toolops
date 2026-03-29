@@ -27,6 +27,10 @@ import {
   useLLMGatewayRequests,
   useLLMGatewayAgents,
   useLLMGatewayLatency,
+  useOpenClawOverview,
+  useOpenClawAgents,
+  useOpenClawTimeline,
+  useOpenClawRequests,
 } from "../lib/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -98,7 +102,7 @@ function statusColor(code: number): string {
 
 // ── main component ─────────────────────────────────────────────────────────
 
-type Tab = "cc" | "gateway";
+type Tab = "cc" | "gateway" | "openclaw";
 
 export default function LLM() {
   const [tab, setTab] = useState<Tab>("cc");
@@ -115,6 +119,12 @@ export default function LLM() {
   const { data: gwRequests, isLoading: gwReqLoading } = useLLMGatewayRequests(50);
   const { data: gwAgents } = useLLMGatewayAgents();
   const { data: gwLatency } = useLLMGatewayLatency("hour");
+
+  // OpenClaw data
+  const { data: ocOverview, isLoading: ocOvLoading } = useOpenClawOverview();
+  const { data: ocAgents } = useOpenClawAgents();
+  const { data: ocTimeline } = useOpenClawTimeline("hour");
+  const { data: ocRequests, isLoading: ocReqLoading } = useOpenClawRequests(50);
 
   const [collecting, setCollecting] = useState(false);
   const [collectMsg, setCollectMsg] = useState<string | null>(null);
@@ -214,6 +224,42 @@ export default function LLM() {
     p95_ms: Math.round(b.p95_ms),
   }));
 
+  // OpenClaw stat cards
+  const ocCards: StatCardProps[] = [
+    {
+      label: "Total Requests",
+      icon: "R",
+      color: "text-[#3b82f6]",
+      value: ocOvLoading ? "..." : fmtK(ocOverview?.total_requests ?? 0),
+    },
+    {
+      label: "Total Tokens",
+      icon: "T",
+      color: "text-[#f97316]",
+      value: ocOvLoading ? "..." : fmtK(ocOverview?.total_tokens ?? 0),
+    },
+    {
+      label: "Est. Cost",
+      icon: "$",
+      color: "text-[#a855f7]",
+      value: ocOvLoading ? "..." : fmtCost(ocOverview?.total_cost_usd ?? 0),
+    },
+    {
+      label: "Avg Latency",
+      icon: "L",
+      color: "text-[#22c55e]",
+      value: ocOvLoading
+        ? "..."
+        : `${Math.round(ocOverview?.avg_latency_ms ?? 0)} ms`,
+    },
+  ];
+
+  // OpenClaw timeline data
+  const ocTimelineData = (ocTimeline ?? []).map((b) => ({
+    ...b,
+    date: fmtDate(String(b.bucket)),
+  }));
+
   return (
     <div className="space-y-6">
       {/* Header row */}
@@ -241,6 +287,16 @@ export default function LLM() {
               }`}
             >
               Gateway
+            </button>
+            <button
+              onClick={() => setTab("openclaw")}
+              className={`px-4 py-1.5 font-medium transition-colors ${
+                tab === "openclaw"
+                  ? "bg-[#3b82f6] text-white"
+                  : "text-[#94a3b8] hover:text-white"
+              }`}
+            >
+              OpenClaw Agents
             </button>
           </div>
         </div>
@@ -431,6 +487,151 @@ export default function LLM() {
                 </table>
                 <div className="text-xs text-[#94a3b8] mt-2">
                   Showing {sessions.length} sessions
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── OpenClaw Agents tab ──────────────────────────────────────────── */}
+      {tab === "openclaw" && (
+        <>
+          {/* Stat cards */}
+          <div className="grid grid-cols-4 gap-4">
+            {ocCards.map((c) => (
+              <StatCard key={c.label} {...c} />
+            ))}
+          </div>
+
+          {/* Charts row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Agent distribution pie */}
+            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+              <h2 className="text-lg font-semibold mb-4">Agent Distribution</h2>
+              {!ocAgents || ocAgents.length === 0 ? (
+                <div className="text-[#94a3b8]">No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={ocAgents}
+                      dataKey="total_tokens"
+                      nameKey="agent_id"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                    >
+                      {ocAgents.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Legend
+                      formatter={(value, entry: any) => {
+                        const total = (ocAgents ?? []).reduce((s, a) => s + a.total_tokens, 0);
+                        const tokens = (entry?.payload as any)?.total_tokens ?? 0;
+                        const pct = total > 0 ? ((tokens / total) * 100).toFixed(0) : "0";
+                        return (
+                          <span style={{ color: "#94a3b8", fontSize: 12 }}>
+                            {value || "(unknown)"} ({pct}%)
+                          </span>
+                        );
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{ background: "#1e293b", border: "1px solid #334155" }}
+                      formatter={(v) => [fmtK(Number(v)), "tokens"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Token timeline */}
+            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+              <h2 className="text-lg font-semibold mb-4">Token Timeline (hourly)</h2>
+              {ocTimelineData.length === 0 ? (
+                <div className="text-[#94a3b8]">No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={ocTimelineData}>
+                    <defs>
+                      <linearGradient id="ocGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                    <YAxis tickFormatter={fmtK} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ background: "#1e293b", border: "1px solid #334155" }}
+                      labelStyle={{ color: "#f1f5f9" }}
+                      formatter={(v) => [fmtK(Number(v)), "tokens"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="total_tokens"
+                      stroke="#22c55e"
+                      fill="url(#ocGrad)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Recent requests table */}
+          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+            <h2 className="text-lg font-semibold mb-4">Recent Requests</h2>
+            {ocReqLoading ? (
+              <div className="text-[#94a3b8]">Loading...</div>
+            ) : !ocRequests || ocRequests.length === 0 ? (
+              <div className="text-[#94a3b8]">No data</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-[#94a3b8] border-b border-[#334155]">
+                    <tr>
+                      <th className="py-2 pr-4">Time</th>
+                      <th className="py-2 pr-4">Agent</th>
+                      <th className="py-2 pr-4">Model</th>
+                      <th className="py-2 pr-4">Provider</th>
+                      <th className="py-2 pr-4 text-right">Tokens (In/Out)</th>
+                      <th className="py-2 pr-4 text-right">Cost</th>
+                      <th className="py-2 pr-4 text-right">Latency</th>
+                      <th className="py-2">Trigger</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ocRequests.map((r, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-[#334155]/50 hover:bg-[#334155]/30"
+                      >
+                        <td className="py-2 pr-4 font-mono text-[#94a3b8] whitespace-nowrap">
+                          {fmtDate(r.timestamp)}
+                        </td>
+                        <td className="py-2 pr-4">{r.agent_id || "—"}</td>
+                        <td className="py-2 pr-4 text-[#94a3b8]">{r.model || "—"}</td>
+                        <td className="py-2 pr-4 text-[#94a3b8]">{r.provider || "—"}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-[#94a3b8]">
+                          {fmtK(r.input_tokens)} / {fmtK(r.output_tokens)}
+                        </td>
+                        <td className="py-2 pr-4 text-right font-mono text-[#a855f7]">
+                          {fmtCost(r.cost_usd ?? 0)}
+                        </td>
+                        <td className="py-2 pr-4 text-right font-mono">
+                          {r.latency_ms > 0 ? `${r.latency_ms} ms` : "—"}
+                        </td>
+                        <td className="py-2 text-[#94a3b8]">{r.trigger || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="text-xs text-[#94a3b8] mt-2">
+                  Showing {ocRequests.length} requests
                 </div>
               </div>
             )}

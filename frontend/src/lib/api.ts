@@ -257,6 +257,78 @@ export function useLLMGatewayLatency(interval: "hour" | "day" = "hour") {
   );
 }
 
+// ---------------------------------------------------------------------------
+// OpenClaw observer hooks
+// ---------------------------------------------------------------------------
+
+export interface OpenClawOverview {
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export function useOpenClawOverview() {
+  return useSWR<OpenClawOverview>("/api/llm/openclaw/overview", fetcher, swrOptions);
+}
+
+export interface OpenClawAgent {
+  agent_id: string;
+  request_count: number;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export function useOpenClawAgents() {
+  return useSWR<OpenClawAgent[]>("/api/llm/openclaw/agents", fetcher, swrOptions);
+}
+
+export interface OpenClawTimelineBucket {
+  bucket: string;
+  request_count: number;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export function useOpenClawTimeline(interval: "hour" | "day" = "hour") {
+  return useSWR<OpenClawTimelineBucket[]>(
+    `/api/llm/openclaw/timeline?interval=${interval}`,
+    fetcher,
+    swrOptions
+  );
+}
+
+export interface OpenClawRequest {
+  timestamp: string;
+  run_id: string;
+  agent_id: string;
+  model: string;
+  provider: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  latency_ms: number;
+  trigger: string;
+  channel: string;
+}
+
+export function useOpenClawRequests(limit = 50) {
+  return useSWR<OpenClawRequest[]>(
+    `/api/llm/openclaw/requests?limit=${limit}`,
+    fetcher,
+    swrOptions
+  );
+}
+
 export async function triggerLLMCollect(): Promise<{ status: string; collected: number; inserted: number }> {
   const res = await fetch(`${API_BASE}/api/llm/collect`, { method: "POST" });
   if (!res.ok) throw new Error(`API error: ${res.status}`);

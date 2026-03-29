@@ -1,0 +1,9 @@
+{
+  "id": "toolops-observer",
+  "name": "ToolOps Observer",
+  "description": "LLM usage observer for ToolOps dashboard",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}

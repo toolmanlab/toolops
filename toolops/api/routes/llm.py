@@ -98,6 +98,40 @@ def get_gateway_latency(
     return ch.query_gateway_latency(interval=interval)
 
 
+@router.get("/openclaw/overview")
+def get_openclaw_overview(
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> dict[str, Any]:
+    """Return aggregate OpenClaw observer stats: requests, tokens, cost, avg latency."""
+    return ch.query_openclaw_overview()
+
+
+@router.get("/openclaw/agents")
+def get_openclaw_agents(
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return OpenClaw usage aggregated by agent_id."""
+    return ch.query_openclaw_by_agent()
+
+
+@router.get("/openclaw/timeline")
+def get_openclaw_timeline(
+    interval: str = "hour",
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return OpenClaw token usage over time. interval='hour' or 'day'."""
+    return ch.query_openclaw_timeline(interval=interval)
+
+
+@router.get("/openclaw/requests")
+def get_openclaw_requests(
+    limit: int = 50,
+    ch: ClickHouseClient = Depends(get_clickhouse),
+) -> list[dict[str, Any]]:
+    """Return recent OpenClaw requests ordered by time descending."""
+    return ch.query_openclaw_requests(limit=limit)
+
+
 @router.get("/collect")
 @router.post("/collect")
 def trigger_collect(

@@ -520,6 +520,94 @@ class ClickHouseClient:
         except Exception:
             return []
 
+    # -- OpenClaw observer query helpers --------------------------------------
+
+    _OPENCLAW_TABLE = "llm_openclaw"
+
+    def query_openclaw_overview(self) -> dict[str, Any]:
+        """Aggregate OpenClaw observer stats: total requests, tokens, cost, latency."""
+        try:
+            result = self.client.query(
+                f"SELECT count() AS total_requests, "
+                f"sum(input_tokens) AS total_input_tokens, "
+                f"sum(output_tokens) AS total_output_tokens, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(cost_usd) AS total_cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms "
+                f"FROM {self._OPENCLAW_TABLE}"
+            )
+            row = result.result_rows[0] if result.result_rows else (0,) * 6
+            return dict(zip(result.column_names, row, strict=False))
+        except Exception:
+            return {
+                "total_requests": 0,
+                "total_input_tokens": 0,
+                "total_output_tokens": 0,
+                "total_tokens": 0,
+                "total_cost_usd": 0.0,
+                "avg_latency_ms": 0.0,
+            }
+
+    def query_openclaw_by_agent(self) -> list[dict[str, Any]]:
+        """Aggregate OpenClaw usage grouped by agent_id."""
+        try:
+            result = self.client.query(
+                f"SELECT agent_id, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms "
+                f"FROM {self._OPENCLAW_TABLE} "
+                f"WHERE agent_id != '' "
+                f"GROUP BY agent_id ORDER BY total_tokens DESC"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_openclaw_timeline(self, interval: str = "hour") -> list[dict[str, Any]]:
+        """Aggregate OpenClaw token usage over time.
+
+        Args:
+            interval: Bucket size — ``"hour"`` or ``"day"``.
+
+        Returns:
+            List of time-bucketed aggregation rows.
+        """
+        trunc_fn = "toStartOfHour" if interval == "hour" else "toStartOfDay"
+        try:
+            result = self.client.query(
+                f"SELECT {trunc_fn}(timestamp) AS bucket, "
+                f"count() AS request_count, "
+                f"sum(total_tokens) AS total_tokens, "
+                f"sum(input_tokens) AS input_tokens, "
+                f"sum(output_tokens) AS output_tokens, "
+                f"sum(cost_usd) AS cost_usd, "
+                f"avg(latency_ms) AS avg_latency_ms "
+                f"FROM {self._OPENCLAW_TABLE} "
+                f"GROUP BY bucket ORDER BY bucket"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
+    def query_openclaw_requests(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return recent OpenClaw requests ordered by time descending."""
+        try:
+            result = self.client.query(
+                f"SELECT timestamp, run_id, agent_id, model, provider, "
+                f"input_tokens, output_tokens, total_tokens, cost_usd, "
+                f"latency_ms, trigger, channel "
+                f"FROM {self._OPENCLAW_TABLE} "
+                f"ORDER BY timestamp DESC "
+                f"LIMIT {limit}"
+            )
+            return self._rows_to_dicts(result)
+        except Exception:
+            return []
+
     def query_overview(self) -> dict[str, Any]:
         """Get overview stats: total requests, avg latency, error rate, cache hit rate."""
         stats: dict[str, Any] = {}

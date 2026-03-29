@@ -101,3 +101,29 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 ) ENGINE = MergeTree()
 ORDER BY (timestamp, session_id)
 TTL toDateTime(timestamp) + INTERVAL 90 DAY;
+
+-- OpenClaw LLM hook observer table (written by toolops-observer plugin)
+CREATE TABLE IF NOT EXISTS llm_openclaw (
+    timestamp DateTime DEFAULT now(),
+    run_id String,
+    session_id String,
+    agent_id String,
+    session_key String,
+    provider String,
+    model String,
+    channel String,
+    input_tokens UInt64 DEFAULT 0,
+    output_tokens UInt64 DEFAULT 0,
+    cache_read_tokens UInt64 DEFAULT 0,
+    cache_write_tokens UInt64 DEFAULT 0,
+    total_tokens UInt64 DEFAULT 0,
+    cost_usd Float64 DEFAULT 0,
+    latency_ms UInt64 DEFAULT 0,
+    images_count UInt32 DEFAULT 0,
+    prompt_length UInt32 DEFAULT 0,
+    system_prompt_length UInt32 DEFAULT 0,
+    history_messages_count UInt32 DEFAULT 0,
+    trigger String DEFAULT ''
+) ENGINE = MergeTree()
+ORDER BY (timestamp, agent_id, model)
+TTL timestamp + INTERVAL 90 DAY;
