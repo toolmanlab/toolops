@@ -1,6 +1,6 @@
 import useSWR from "swr";
 
-const API_BASE = "http://localhost:9003";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:9003";
 
 const fetcher = (url: string) =>
   fetch(`${API_BASE}${url}`).then((res) => {

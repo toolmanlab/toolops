@@ -119,6 +119,21 @@ services:
       timeout: 5s
       retries: 5
 
+  toolops-dashboard:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3003:80"
+    depends_on:
+      toolops-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   clickhouse-data:
   prometheus-data:
