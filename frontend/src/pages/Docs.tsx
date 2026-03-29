@@ -14,6 +14,7 @@ const DOCS = [
   { name: "部署指南", path: "/docs/deployment.md" },
   { name: "配置参考", path: "/docs/configuration.md" },
   { name: "toolops.yaml 规范", path: "/docs/topology.md" },
+  { name: "LLM Intelligence", path: "/docs/llm-intelligence.md" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
